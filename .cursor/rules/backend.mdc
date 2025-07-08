@@ -1,0 +1,42 @@
+---
+alwaysApply: true
+---
+
+# Backend Geliştirme Kuralları
+
+## API Endpointleri
+
+- `/dashboard-api/proxies` [GET, POST, PUT, DELETE]: Proxy listesi CRUD işlemleri. (caddy server backendi ile iletişime geçilecek.)
+- `/dashboard-/ssl` [GET]: SSL sertifika durumları ve geçerlilik tarihleri. (caddy server backendi ile iletişime geçilecek.)
+- `/dashboard-/tokens` [GET, POST, DELETE]: API key yönetimi
+- `/dashboard-/users` [GET, POST, PUT, DELETE]: Kullanıcı yönetimi
+- `/dashboard-/auth/login` [POST]: Kullanıcı girişi, JWT oluşturma
+- `/dashboard-/auth/logout` [POST]: Çıkış işlemi
+
+## Caddy REST API
+
+- Proxy ve SSL bilgileri Caddy'nin `GET /config/` ve `PUT /config/` API'si ile yönetilecek
+- SSL bilgileri config'den parse edilecek, Caddy ACME durumları izlenecek
+
+## Veritabanı
+
+- Kullanıcılar ve API tokenları **SQLite** ile saklanacak
+- Prisma veya better-sqlite3 gibi hafif ORM/Query builder kullanılabilir
+- Password hashing için bcrypt tercih edilecek
+- Migration ve seed işlemleri kolay yönetilebilir olmalı
+
+## Güvenlik
+
+- JWT ile doğrulama
+- Rate limiting backend seviyesinde uygulanacak
+
+## Hata Yönetimi
+
+- Tüm API çağrıları try-catch bloklarında olacak
+- Hata mesajları kullanıcıya açık ve anlaşılır dönecek
+- Validation middleware kullanılacak
+
+## Kodlama
+
+- API handler fonksiyonları temiz ve modüler olacak
+- Ortak Caddy REST API client fonksiyonları lib klasöründe olacak

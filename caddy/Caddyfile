@@ -1,0 +1,25 @@
+# Caddy Server Development Configuration
+# Development için basit localhost routing
+
+{
+	# Admin API - dahili ağdan erişilebilir
+	admin 127.0.0.1:2019
+	log {
+		output file /data/logs/caddy.log
+		level INFO
+	}
+	# Development'da auto HTTPS kapalı
+	auto_https off
+}
+
+# Ana proxy server - development için
+:80 {
+	# Varsayılan olarak dashboard'a yönlendir
+	reverse_proxy 127.0.0.1:3000
+}
+
+# HTTPS port
+:443 {
+	# Varsayılan olarak dashboard'a yönlendir
+	reverse_proxy 127.0.0.1:3000
+} 

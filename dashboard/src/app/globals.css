@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design System Variables */
+:root {
+	--color-primary: #131821; /* Dark teal - main backgrounds */
+	--color-secondary: #242837; /* Gray - secondary elements */
+	--color-accent: #00ff93; /* Bright green - focus/success */
+	--color-highlight: #ea5edd; /* Pink - CTA/important buttons */
+	--color-subtle: #601295; /* Purple - subtle accents */
+	--color-text-primary: #ffffff;
+	--color-text-secondary: rgba(255, 255, 255, 0.7);
+	--color-text-muted: rgba(255, 255, 255, 0.5);
+	--transition-speed: 200ms;
+	--shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+	--shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2);
+	--glow-accent: 0 0 20px rgba(0, 255, 147, 0.3);
+	--glow-highlight: 0 0 20px rgba(234, 94, 221, 0.3);
+}
+
+/* Global Styles - Reset unwanted rounded corners on specific elements */
+.admin-card,
+.admin-nav-item,
+input,
+button,
+select,
+textarea {
+	border-radius: 0 !important;
+}
+
+body {
+	background-color: var(--color-primary);
+	color: var(--color-text-primary);
+	font-family: var(--font-geist-sans), system-ui, sans-serif;
+	line-height: 1.6;
+}
+
+/* Admin Dashboard Components */
+.admin-card {
+	background-color: var(--color-secondary);
+	border: 1px solid var(--color-border);
+	border-radius: 0;
+	transition: all var(--transition-speed) ease;
+	box-shadow: var(--shadow-sm);
+}
+
+.admin-card:hover {
+	border-color: theme("colors.slate.600");
+	box-shadow: var(--shadow-md);
+	transform: translateY(-1px);
+}
+
+.admin-sidebar {
+	background-color: theme("colors.slate.900");
+	border-right: 1px solid var(--color-border);
+	box-shadow: var(--shadow-lg);
+}
+
+.admin-nav-item {
+	display: flex;
+	align-items: center;
+	padding: 0.75rem 1rem;
+	color: var(--color-text-secondary);
+	text-decoration: none;
+	transition: all var(--transition-speed) ease;
+	border-radius: 0;
+	border: 1px solid transparent;
+	margin: 2px 4px;
+}
+
+.admin-nav-item:hover {
+	background-color: var(--color-secondary);
+	color: var(--color-text-primary);
+	border-color: var(--color-border);
+	transform: translateX(2px);
+}
+
+.admin-nav-item.active {
+	background-color: theme("colors.slate.700");
+	color: var(--color-text-primary);
+	border-color: theme("colors.slate.600");
+	box-shadow: var(--shadow-sm);
+}
+
+/* Dashboard Specific Components */
+.stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1.5rem;
+	margin-bottom: 2rem;
+}
+
+.activity-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 0.75rem 0;
+	border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+	transition: all var(--transition-speed) ease;
+}
+
+.activity-item:last-child {
+	border-bottom: none;
+}
+
+.activity-item:hover {
+	background-color: rgba(71, 85, 105, 0.1);
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
+}
+
+.activity-time {
+	flex-shrink: 0;
+	color: theme("colors.slate.500");
+	font-size: 0.75rem;
+	min-width: fit-content;
+	margin-left: 1rem;
+}
+
+.status-indicator {
+	width: 1rem;
+	height: 1rem;
+	margin-right: 0.75rem;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	flex-shrink: 0;
+}
+
+.status-success {
+	background-color: #10b981;
+	box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-warning {
+	background-color: #f59e0b;
+	box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.status-info {
+	background-color: #3b82f6;
+	box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+.dashboard-header {
+	background: linear-gradient(135deg, var(--color-secondary) 0%, theme("colors.slate.900") 100%);
+	border-bottom: 1px solid var(--color-border);
+	box-shadow: var(--shadow-sm);
+}
+
+.stat-icon-container {
+	padding: 0.75rem;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	transition: all var(--transition-speed) ease;
+}
+
+.stat-icon-container:hover {
+	transform: scale(1.05);
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Custom Utilities */
+.text-shadow {
+	text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.glass-effect {
+	backdrop-filter: blur(10px);
+	background: rgba(30, 41, 59, 0.8);
+	border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+/* Animation Classes */
+.animate-float {
+	animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+	animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes float {
+	0%,
+	100% {
+		transform: translateY(0px);
+	}
+	50% {
+		transform: translateY(-20px);
+	}
+}
+
+/* Focus States */
+input:focus,
+button:focus {
+	outline: 2px solid rgba(226, 232, 240, 0.5);
+	outline-offset: 2px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-primary);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-secondary);
+}
+
+/* Loading Animation */
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

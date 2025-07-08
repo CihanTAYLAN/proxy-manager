@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = "file:./dev.db"
+}
+
+model User {
+    id        String   @id @default(cuid())
+    email     String   @unique
+    username  String   @unique
+    password  String // bcrypt hashed password
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    auditLogs AuditLog[]
+    apiTokens ApiToken[]
+
+    @@map("users")
+}
+
+model ApiToken {
+    id         String    @id @default(cuid())
+    name       String
+    token      String    @unique // hashed API token
+    isActive   Boolean   @default(true)
+    expiresAt  DateTime?
+    lastUsedAt DateTime?
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
+
+    // Relations
+    userId    String?
+    user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+    auditLogs AuditLog[]
+
+    @@map("api_tokens")
+}
+
+model AuditLog {
+    id         String   @id @default(cuid())
+    action     String // CREATE, UPDATE, DELETE, LOGIN, etc.
+    resource   String // USER, PROXY, TOKEN, SSL
+    resourceId String?
+    details    Json? // additional details about the action
+    ipAddress  String?
+    userAgent  String?
+    createdAt  DateTime @default(now())
+
+    // Relations
+    userId  String?
+    user    User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+    tokenId String?
+    token   ApiToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+    @@map("audit_logs")
+}

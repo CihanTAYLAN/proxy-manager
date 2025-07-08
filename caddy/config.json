@@ -1,0 +1,80 @@
+{
+    "apps": {
+        "http": {
+            "servers": {
+                "proxy": {
+                    "listen": [
+                        ":80",
+                        ":443"
+                    ],
+                    "routes": [
+                        {
+                            "match": [
+                                {
+                                    "host": [
+                                        "dashboard.localhost"
+                                    ]
+                                }
+                            ],
+                            "handle": [
+                                {
+                                    "handler": "reverse_proxy",
+                                    "upstreams": [
+                                        {
+                                            "dial": "dashboard:3000"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "tls": {
+                        "automation": {
+                            "policies": [
+                                {
+                                    "subjects": [
+                                        "*.localhost"
+                                    ],
+                                    "issuers": [
+                                        {
+                                            "module": "internal"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "tls": {
+            "automation": {
+                "policies": [
+                    {
+                        "subjects": [
+                            "*.localhost"
+                        ],
+                        "issuers": [
+                            {
+                                "module": "internal"
+                            }
+                        ]
+                    },
+                    {
+                        "subjects": [],
+                        "issuers": [
+                            {
+                                "module": "acme",
+                                "challenges": {
+                                    "http": {
+                                        "alternate_port": 80
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

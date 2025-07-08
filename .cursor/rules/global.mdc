@@ -1,0 +1,76 @@
+---
+alwaysApply: true
+---
+
+# Global Proje Kuralları
+
+## Proje Tanımı
+
+Bu proje, Caddy Server REST API'si kullanarak proxy yönlendirmeleri, SSL sertifikaları, API kullanıcıları ve Dashboard kullanıcı yönetimini içeren kapsamlı bir web yönetim panelidir.  
+Next.js (App Router) + TypeScript + Tailwind kullanılarak geliştirilir.
+
+## Ana Modüller
+
+- Proxy Yönetimi (Listeleme, Ekleme, Düzenleme, Silme)
+- SSL Sertifikası Yönetimi (ACME durumu, geçerlilik tarihleri)
+- API Token Yönetimi (API key oluşturma, silme, listeleme)
+- Kullanıcı Yönetimi (Giriş, ekleme, düzenleme, silme)
+- Dashboard UI (responsive, erişim kontrolleri, hata yönetimi)
+- Auth sistemi JWT veya session tabanlı olmalıdır.
+
+## Teknolojiler
+
+- Next.js 14 (App Router)
+- TypeScript
+- **Tailwind**
+- Zustand (global state)
+- Tanstack Query (data fetching)
+- **SQLite** (kullanıcı ve token veritabanı)
+- Caddy REST API (`localhost:2019/api/`)
+- NextJS Backend API (`localhost:2019/dashboard-api/`)
+- JWT Auth
+
+## Kodlama Standartları
+
+- Tüm dosyalarda TypeScript kullanılacak
+- React fonksiyonel komponentler Hooks ile yazılacak
+- Her UI bileşeninin en üstünde kısa açıklama olacak
+- API endpoint'leri RESTful olacak
+- Error handling ve loading state mutlaka olacak
+- Componentler küçük, reusable ve tek sorumluluklu olacak
+
+## REST API İletişimi
+
+- Caddy config JSON'u `GET /config/` ve `PUT /config/` ile alınacak/güncellenecek
+- Proxy ayarları `apps.http.servers.proxy.routes` alanında olacak
+- SSL bilgileri `apps.http.servers.proxy.tls` veya `tls.certificates` altında okunacak
+- API kullanıcıları ve dashboard kullanıcıları uygulama veritabanında saklanacak
+
+## Güvenlik
+
+- API çağrıları JWT veya API key ile doğrulanacak
+- Admin ve editör rolleri olacak
+- Dashboard sadece login olmuş kullanıcıya açık olacak
+
+## Performans
+
+- SWR/Tanstack Query ile veri cache ve revalidation yapılacak
+- Gereksiz re-render engellenecek
+
+## UI/UX
+
+- Tasarımda **Tailwind** komponentleri kullanılacak
+- Tema desteği olacak, kullanıcı **dark mode ve light mode** arasında geçiş yapabilecek
+- Responsive ve mobile first
+- Modal ile proxy ekleme/düzenleme yapılacak
+- SSL durumu renk kodlu badge ile gösterilecek (yeşil/sarı/kırmızı)
+- Token oluşturma ve kopyalama butonları Tailwind bileşenleri olacak
+- Hata ve başarı mesajları Tailwind `message` veya `notification` ile gösterilecek
+
+## AI Geliştirme Kuralları
+
+- Cursor ile her adımda minimal commit yap
+- MCP dosyalarını ve promptları düzenli güncelle
+- UI bileşenlerinde props, state ve event handler açıklamaları mutlaka olsun
+- Karmaşık kodları küçük parçalara bölerek yaz
+- Her API endpoint için test cases yaz

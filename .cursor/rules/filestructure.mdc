@@ -1,0 +1,53 @@
+---
+alwaysApply: true
+---
+
+# Proje Dosya ve Klasör Yapısı
+
+Proje, Caddy Server Docker imajı üzerine kurulacak şekilde organize edilmiştir.  
+Docker Compose ve container içi yapı uyumlu, modüler, anlaşılır bir dosya yapısı aşağıdaki gibidir.
+
+/project-root
+│
+├── docker-compose.yml # Caddy Server + Dashboard vs servislerin tanımı
+├── caddy
+│ ├── Caddyfile # Caddy Server temel konfigürasyonu
+│ ├── data # Caddy'nin sertifika, config, log vb dosyaları için volume klasörü
+│ │ ├── acme # ACME sertifika dosyaları
+│ │ └── logs # Caddy logları
+│ └── config.json # Caddy REST API config snapshot
+│
+├── dashboard # Next.js + TailwindCss tabanlı yönetim paneli frontend-backend kodu
+│ ├── app # Next.js App Router dosyaları
+│ │ ├── api # Next.js API Routes - backend endpointleri
+│ │ │ ├── proxies # Proxy CRUD API endpointleri
+│ │ │ ├── ssl # SSL durum API endpointleri
+│ │ │ ├── tokens # API Token CRUD endpointleri
+│ │ │ └── auth # Authentication endpointleri (login, register, logout)
+│ │ ├── dashboard # Dashboard sayfaları (proxy listesi, token yönetimi vs)
+│ │ └── styles # Global ve component bazlı stil dosyaları (tailwind tema override)
+│ │
+│ ├── prisma # Prisma ORM şeması ve migration dosyaları (SQLite için)
+│ │ ├── schema.prisma
+│ │ └── migrations
+│ │
+│ ├── lib # Ortak yardımcı fonksiyonlar, Caddy API client vb
+│ ├── components # React UI bileşenleri
+│ ├── context # Zustand veya React Context store dosyaları (tema, auth, state)
+│ ├── public # Statik dosyalar (ikonlar, favicon vs)
+│ └── package.json # Dashboard frontend-backend bağımlılıkları
+│
+├── scripts # Yardımcı scriptler (migration, seed, docker helper vs)
+│
+└── README.md # Proje genel açıklaması ve çalışma notları
+
+markdown
+Kopyala
+Düzenle
+
+## Önemli Notlar
+
+- `docker-compose.yml` Caddy Server container’ını ve Dashboard uygulamasını başlatacak şekilde ayarlanmalı
+- Caddy config dosyaları `caddy` klasörü altında tutulacak, volume olarak bağlanacak
+- Dashboard kendi içinde Next.js API Routes ile backend servisini sağlar
+- Veritabanı olarak dashboard içinde SQLite dosyası tutulur (örneğin `dashboard/prisma/dev.db`)

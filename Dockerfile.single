@@ -1,0 +1,50 @@
+# Unified Production Dockerfile
+# Caddy + Next.js Dashboard in single container
+
+FROM node:20-alpine AS dashboard-builder
+
+# Install dependencies
+WORKDIR /app
+COPY dashboard/package.json dashboard/package-lock.json* ./
+RUN npm ci
+
+# Build dashboard
+COPY dashboard/ ./
+RUN npx prisma generate
+RUN npm run build
+
+# Final production image with Caddy
+FROM caddy:2-alpine
+
+# Install Node.js and required tools in Caddy image
+RUN apk add --no-cache nodejs npm gettext
+
+# Create app directory
+WORKDIR /app
+
+# Copy built dashboard
+COPY --from=dashboard-builder /app/.next/standalone ./dashboard/
+COPY --from=dashboard-builder /app/.next/static ./dashboard/.next/static
+COPY --from=dashboard-builder /app/public ./dashboard/public
+COPY --from=dashboard-builder /app/prisma ./dashboard/prisma
+COPY --from=dashboard-builder /app/node_modules/.prisma ./dashboard/node_modules/.prisma
+
+# Copy Caddy configuration for production hostname routing
+COPY caddy/Caddyfile.production /etc/caddy/Caddyfile
+
+# Copy development Caddyfile as template
+COPY caddy/Caddyfile /etc/caddy/Caddyfile.dev
+
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Expose ports for HTTP and HTTPS only
+EXPOSE 80 443
+
+# Health check - check dashboard via Caddy reverse proxy
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+
+# Start both services
+CMD ["/start.sh"] 

@@ -1,0 +1,38 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Frontend Geliştirme Kuralları
+
+## Proje Yapısı
+
+- Next.js App Router kullanılacak
+- Frontend `/dashboard/*` altında olacak
+- Global state için Zustand kullanılacak
+- Veri çekmede Tanstack Query tercih edilecek
+- **Tawilwind Css** ile responsive UI tasarlanacak
+
+## Sayfalar ve Bileşenler
+
+- Proxy Listesi ve Form Modal: `/dashboard/proxies`
+- SSL Sertifika Durumları: `/dashboard/ssl`
+- API Token Yönetimi: `/dashboard/tokens`
+- Kullanıcı Yönetimi: `/dashboard/users`
+- Login: `/auth/login`
+
+## UI Detayları
+
+- Proxy formunda caddyserver tarafındaki alanların komponentleri olacak.
+- SSL durumu renkli badge ile gösterilecek (geçerlilik süresine göre)
+- Token listesinde kopyalama butonu olacak
+- Modal kullanımı, loading ve error state yönetimi olacak
+- Hata mesajları kullanıcı dostu olacak
+
+## Kodlama Standartları
+
+- Bileşenler fonksiyonel ve hooks ile yazılacak
+- Her bileşen üstünde açıklama olacak
+- Props ve event handler tipleri mutlaka tanımlanacak
+- SWR/Tanstack Query ile veri yönetimi yapılacak

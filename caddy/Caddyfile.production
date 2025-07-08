@@ -1,0 +1,31 @@
+# Production Caddy Configuration
+# HOST environment variable based routing
+
+{
+	# Admin API - dahili erişim
+	admin 127.0.0.1:2019
+	log {
+		output file /data/logs/caddy.log
+		level INFO
+	}
+	# Production'da auto HTTPS aktif
+	auto_https on
+}
+
+# Ana proxy server - HOST based routing
+{$HOST} {
+	# Ana domain (example.com) dashboard'a yönlendir
+	reverse_proxy 127.0.0.1:3000
+}
+
+# Wildcard subdomain routing - dinamik proxy kuralları için
+*.{$HOST} {
+	# Varsayılan olarak 404, dinamik kurallar REST API ile eklenecek
+	# test.example.com, api.example.com gibi subdomain'ler buraya düşecek
+	respond "Proxy Manager - Subdomain not configured" 404
+}
+
+# HTTP to HTTPS redirect
+:80 {
+	redir https://{host}{uri} permanent
+} 

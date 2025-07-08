@@ -1,0 +1,21 @@
+services:
+  proxy-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.single
+    container_name: proxy-manager-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/data:/data
+      - ./dashboard/prisma:/app/dashboard/prisma
+    environment:
+      - NODE_ENV=development
+      - HOST=localhost # Development için localhost, production'da example.com olacak
+      - PORT=3000 # Next.js port ayarı
+
+networks:
+  proxy-network:
+    driver: bridge
