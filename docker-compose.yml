@@ -9,12 +9,58 @@ services:
       - "80:80"
       - "443:443"
     volumes:
+      # Caddy data volume
       - ./caddy/data:/data
+
+      # Prisma database and schema
       - ./dashboard/prisma:/app/dashboard/prisma
+
+      # Dashboard source code for hot reload
+      - ./dashboard/src:/app/dashboard/src
+      - ./dashboard/public:/app/dashboard/public
+      - ./dashboard/package.json:/app/dashboard/package.json
+      - ./dashboard/package-lock.json:/app/dashboard/package-lock.json
+      - ./dashboard/next.config.ts:/app/dashboard/next.config.ts
+      - ./dashboard/tailwind.config.js:/app/dashboard/tailwind.config.js
+      - ./dashboard/tsconfig.json:/app/dashboard/tsconfig.json
+      - ./dashboard/postcss.config.mjs:/app/dashboard/postcss.config.mjs
+      - ./dashboard/components.json:/app/dashboard/components.json
+      - ./dashboard/eslint.config.mjs:/app/dashboard/eslint.config.mjs
+
+      # Node modules cache (for faster installs)
+      - dashboard-node-modules:/app/dashboard/node_modules
+
     environment:
       - NODE_ENV=development
       - HOST=localhost # Development için localhost, production'da example.com olacak
       - PORT=3000 # Next.js port ayarı
+      - CHOKIDAR_USEPOLLING=true # Docker'da file watching için
+      - WATCHPACK_POLLING=true # Webpack file watching için
+      - NEXT_TELEMETRY_DISABLED=1 # Telemetry'yi kapat
+
+    # Development için command override
+    command: >
+      sh -c "
+        echo '🔄 Starting development mode with hot reload...' &&
+        cd /app/dashboard &&
+        npm install &&
+        npx prisma generate &&
+        npm run dev &
+        DASHBOARD_PID=$$! &&
+        echo '📊 Dashboard started in development mode' &&
+        echo '🌐 Starting Caddy...' &&
+        if [ '$$NODE_ENV' = 'production' ]; then
+          CADDYFILE='/etc/caddy/Caddyfile'
+        else
+          sed 's/$$HOST/$$HOST/g' /etc/caddy/Caddyfile.dev > /tmp/Caddyfile.dev
+          CADDYFILE='/tmp/Caddyfile.dev'
+        fi &&
+        exec caddy run --config $$CADDYFILE
+      "
+
+# Named volumes
+volumes:
+  dashboard-node-modules:
 
 networks:
   proxy-network:
