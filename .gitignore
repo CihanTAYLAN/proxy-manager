@@ -1,1 +1,2 @@
-dashboard/prisma/dev.db
+dev.db
+*.log

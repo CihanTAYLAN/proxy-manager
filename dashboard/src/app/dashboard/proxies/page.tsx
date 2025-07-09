@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Globe, Plus, Pencil, Trash2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,85 +9,48 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
-// Mock proxy data
-interface ProxyConfig {
-    id: string;
-    domain: string;
-    target: string;
-    sslStatus: 'valid' | 'expired' | 'pending' | 'error';
-    status: 'active' | 'inactive';
-    createdAt: string;
-    updatedAt: string;
-}
-
-const mockProxies: ProxyConfig[] = [
-    {
-        id: '1',
-        domain: 'api.example.com',
-        target: 'http://localhost:3001',
-        sslStatus: 'valid',
-        status: 'active',
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-15T10:30:00Z'
-    },
-    {
-        id: '2',
-        domain: 'app.example.com',
-        target: 'http://localhost:3000',
-        sslStatus: 'valid',
-        status: 'active',
-        createdAt: '2024-01-10T14:20:00Z',
-        updatedAt: '2024-01-10T14:20:00Z'
-    },
-    {
-        id: '3',
-        domain: 'old.example.com',
-        target: 'http://localhost:8080',
-        sslStatus: 'expired',
-        status: 'inactive',
-        createdAt: '2024-01-05T09:15:00Z',
-        updatedAt: '2024-01-05T09:15:00Z'
-    }
-];
+import { useProxyStore } from '@/context/proxy-store';
+import { useAuthStore } from '@/context/auth-store';
+import { type ProxyConfig } from '@/lib/caddy-api';
+import ProxyForm from '@/components/ProxyForm';
 
 /**
  * Proxy management page - list, create, edit, delete proxy configurations
  */
 export default function ProxiesPage() {
-    const [proxies, setProxies] = useState<ProxyConfig[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [showCreateDialog, setShowCreateDialog] = useState(false);
-    const [selectedProxy, setSelectedProxy] = useState<ProxyConfig | null>(null);
+    const {
+        proxies,
+        isLoading,
+        error,
+        showModal,
+        modalMode,
+        selectedProxy,
+        fetchProxies,
+        deleteProxy,
+        showCreateModal,
+        showEditModal,
+        hideModal,
+        clearError
+    } = useProxyStore();
 
-    const fetchProxies = async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setProxies(mockProxies);
-        } catch {
-            setError('Failed to fetch proxies');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const { isAuthenticated } = useAuthStore();
 
     useEffect(() => {
-        fetchProxies();
-    }, []);
+        if (isAuthenticated) {
+            fetchProxies();
+        }
+    }, [isAuthenticated, fetchProxies]);
 
     const handleDeleteProxy = async (id: string) => {
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 500));
-            setProxies(prev => prev.filter(proxy => proxy.id !== id));
-        } catch {
-            setError('Failed to delete proxy');
+            await deleteProxy(id);
+        } catch (error) {
+            console.error('Failed to delete proxy:', error);
         }
+    };
+
+    const handleFormSuccess = () => {
+        hideModal();
     };
 
     const getSSLBadge = (status: ProxyConfig['sslStatus']) => {
@@ -98,8 +61,8 @@ export default function ProxiesPage() {
                 return { variant: 'destructive' as const, label: 'SSL Expired', icon: AlertCircle };
             case 'pending':
                 return { variant: 'secondary' as const, label: 'SSL Pending', icon: AlertCircle };
-            case 'error':
-                return { variant: 'destructive' as const, label: 'SSL Error', icon: AlertCircle };
+            case 'invalid':
+                return { variant: 'destructive' as const, label: 'SSL Invalid', icon: AlertCircle };
             default:
                 return { variant: 'secondary' as const, label: 'Unknown', icon: AlertCircle };
         }
@@ -117,7 +80,19 @@ export default function ProxiesPage() {
     };
 
     const activeProxies = proxies.filter(proxy => proxy.status === 'active').length;
-    const sslIssues = proxies.filter(proxy => proxy.sslStatus === 'expired' || proxy.sslStatus === 'error').length;
+    const sslIssues = proxies.filter(proxy => proxy.sslStatus === 'expired' || proxy.sslStatus === 'invalid').length;
+
+    // Show loading state if authentication is not ready
+    if (!isAuthenticated) {
+        return (
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
+                    <span>Loading...</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-6">
@@ -132,7 +107,7 @@ export default function ProxiesPage() {
                         Manage your Caddy proxy configurations and routing rules.
                     </p>
                 </div>
-                <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <Dialog open={showModal && modalMode === 'create'} onOpenChange={(open) => open ? showCreateModal() : hideModal()}>
                     <DialogTrigger asChild>
                         <Button className="w-full sm:w-auto">
                             <Plus className="mr-2 h-4 w-4" />
@@ -146,10 +121,11 @@ export default function ProxiesPage() {
                                 Add a new proxy configuration to route traffic to your services.
                             </DialogDescription>
                         </DialogHeader>
-                        {/* TODO: Add ProxyForm component here */}
-                        <div className="p-4 text-center text-muted-foreground">
-                            Proxy form will be implemented here
-                        </div>
+                        <ProxyForm
+                            mode="create"
+                            onSuccess={handleFormSuccess}
+                            onCancel={hideModal}
+                        />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -189,7 +165,17 @@ export default function ProxiesPage() {
             {error && (
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>
+                        {error}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-2"
+                            onClick={clearError}
+                        >
+                            Dismiss
+                        </Button>
+                    </AlertDescription>
                 </Alert>
             )}
 
@@ -214,7 +200,7 @@ export default function ProxiesPage() {
                             <p className="text-muted-foreground mb-4">
                                 Get started by creating your first proxy configuration.
                             </p>
-                            <Button onClick={() => setShowCreateDialog(true)}>
+                            <Button onClick={showCreateModal}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Proxy
                             </Button>
@@ -273,7 +259,7 @@ export default function ProxiesPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => setSelectedProxy(proxy)}
+                                                        onClick={() => showEditModal(proxy)}
                                                     >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
@@ -287,7 +273,7 @@ export default function ProxiesPage() {
                                                             <AlertDialogHeader>
                                                                 <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
                                                                 <AlertDialogDescription>
-                                                                    Are you sure you want to delete the proxy for "{proxy.domain}"?
+                                                                    Are you sure you want to delete the proxy for &quot;{proxy.domain}&quot;?
                                                                     This action cannot be undone and will immediately stop routing traffic.
                                                                 </AlertDialogDescription>
                                                             </AlertDialogHeader>
@@ -314,22 +300,24 @@ export default function ProxiesPage() {
             </Card>
 
             {/* Edit Dialog */}
-            {selectedProxy && (
-                <Dialog open={!!selectedProxy} onOpenChange={() => setSelectedProxy(null)}>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>Edit Proxy</DialogTitle>
-                            <DialogDescription>
-                                Update the proxy configuration for {selectedProxy.domain}.
-                            </DialogDescription>
-                        </DialogHeader>
-                        {/* TODO: Add ProxyForm component here */}
-                        <div className="p-4 text-center text-muted-foreground">
-                            Edit proxy form will be implemented here
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            )}
+            <Dialog open={showModal && modalMode === 'edit'} onOpenChange={(open) => open ? (selectedProxy && showEditModal(selectedProxy)) : hideModal()}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Proxy</DialogTitle>
+                        <DialogDescription>
+                            Update the proxy configuration for {selectedProxy?.domain}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedProxy && (
+                        <ProxyForm
+                            mode="edit"
+                            proxy={selectedProxy}
+                            onSuccess={handleFormSuccess}
+                            onCancel={hideModal}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 } 

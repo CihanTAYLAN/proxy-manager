@@ -1,15 +1,6 @@
 import { create } from "zustand";
-
-export interface ProxyConfig {
-	id: string;
-	domain: string;
-	target: string;
-	sslEnabled: boolean;
-	sslStatus: "valid" | "invalid" | "expired" | "pending";
-	status: "active" | "inactive";
-	createdAt: string;
-	updatedAt: string;
-}
+import { type ProxyConfig, type ProxyFormData } from "@/lib/caddy-api";
+import { useAuthStore } from "./auth-store";
 
 interface ProxyState {
 	proxies: ProxyConfig[];
@@ -22,8 +13,8 @@ interface ProxyState {
 
 interface ProxyActions {
 	fetchProxies: () => Promise<void>;
-	createProxy: (data: Omit<ProxyConfig, "id" | "createdAt" | "updatedAt">) => Promise<void>;
-	updateProxy: (id: string, data: Partial<ProxyConfig>) => Promise<void>;
+	createProxy: (data: ProxyFormData) => Promise<void>;
+	updateProxy: (id: string, data: Partial<ProxyFormData>) => Promise<void>;
 	deleteProxy: (id: string) => Promise<void>;
 	setSelectedProxy: (proxy: ProxyConfig | null) => void;
 	setLoading: (loading: boolean) => void;
@@ -32,6 +23,25 @@ interface ProxyActions {
 	showEditModal: (proxy: ProxyConfig) => void;
 	hideModal: () => void;
 	clearError: () => void;
+}
+
+/**
+ * Gets auth token from auth store
+ */
+function getAuthToken(): string | null {
+	const authState = useAuthStore.getState();
+	return authState.token;
+}
+
+/**
+ * Creates authenticated fetch headers
+ */
+function getAuthHeaders(): HeadersInit {
+	const token = getAuthToken();
+	return {
+		"Content-Type": "application/json",
+		...(token && { Authorization: `Bearer ${token}` }),
+	};
 }
 
 /**
@@ -52,9 +62,16 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/proxies");
+			const response = await fetch("/api/proxies", {
+				method: "GET",
+				headers: getAuthHeaders(),
+			});
+
 			if (!response.ok) {
-				throw new Error("Failed to fetch proxies");
+				if (response.status === 401) {
+					throw new Error("Authentication required");
+				}
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
 			const data = await response.json();
@@ -77,14 +94,15 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		try {
 			const response = await fetch("/api/proxies", {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: getAuthHeaders(),
 				body: JSON.stringify(proxyData),
 			});
 
 			if (!response.ok) {
-				throw new Error("Failed to create proxy");
+				if (response.status === 401) {
+					throw new Error("Authentication required");
+				}
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
 			const data = await response.json();
@@ -109,14 +127,15 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		try {
 			const response = await fetch("/api/proxies", {
 				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: getAuthHeaders(),
 				body: JSON.stringify({ id, ...proxyData }),
 			});
 
 			if (!response.ok) {
-				throw new Error("Failed to update proxy");
+				if (response.status === 401) {
+					throw new Error("Authentication required");
+				}
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
 			const data = await response.json();
@@ -139,12 +158,16 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch(`/api/proxies?id=${id}`, {
+			const response = await fetch(`/api/proxies?id=${encodeURIComponent(id)}`, {
 				method: "DELETE",
+				headers: getAuthHeaders(),
 			});
 
 			if (!response.ok) {
-				throw new Error("Failed to delete proxy");
+				if (response.status === 401) {
+					throw new Error("Authentication required");
+				}
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
 			const data = await response.json();

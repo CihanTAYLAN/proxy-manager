@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Users, Plus, Pencil, Trash2, UserCheck, UserX, Calendar, Shield, Mail } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Users, Plus, Pencil, Trash2, UserCheck, UserX, Calendar, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,73 +10,68 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-
-interface User {
-    id: string;
-    email: string;
-    name: string;
-    role: 'admin' | 'editor';
-    createdAt: string;
-    lastLogin?: string;
-    isActive: boolean;
-}
-
-const mockUsers: User[] = [
-    {
-        id: '1',
-        email: 'admin@example.com',
-        name: 'Admin User',
-        role: 'admin',
-        createdAt: '2024-01-01T10:00:00Z',
-        lastLogin: '2024-01-20T14:30:00Z',
-        isActive: true,
-    },
-    {
-        id: '2',
-        email: 'editor@example.com',
-        name: 'Editor User',
-        role: 'editor',
-        createdAt: '2024-01-10T09:15:00Z',
-        lastLogin: '2024-01-18T16:45:00Z',
-        isActive: true,
-    },
-    {
-        id: '3',
-        email: 'inactive@example.com',
-        name: 'Inactive User',
-        role: 'editor',
-        createdAt: '2024-01-05T11:30:00Z',
-        lastLogin: '2024-01-12T08:20:00Z',
-        isActive: false,
-    },
-];
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useUserStore, type CreateUserData, type UpdateUserData, type User } from '@/context/user-store';
+import { useAuthStore } from '@/context/auth-store';
 
 /**
  * User management page - view and manage dashboard users
  */
 export default function UsersPage() {
-    const [users, setUsers] = useState<User[]>(mockUsers);
-    const [isLoading, setIsLoading] = useState(false);
+    const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+    const {
+        users,
+        isLoading,
+        error,
+        isInitialized,
+        fetchUsers,
+        createUser,
+        updateUser,
+        deleteUser,
+        toggleUserStatus,
+        clearError,
+        initialize
+    } = useUserStore();
+
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
 
-    // Form state
-    const [newUser, setNewUser] = useState({
+    // Form state for creating users
+    const [newUser, setNewUser] = useState<CreateUserData>({
         email: '',
-        name: '',
-        role: 'editor' as 'admin' | 'editor',
+        username: '',
         password: '',
     });
 
+    // Form state for editing users
+    const [editUser, setEditUser] = useState<UpdateUserData>({});
+
     const { toast } = useToast();
 
+    // Initialize store and load users when authentication is confirmed
+    useEffect(() => {
+        if (isAuthenticated && !authLoading && !isInitialized) {
+            initialize();
+            fetchUsers();
+        }
+    }, [isAuthenticated, authLoading, isInitialized, initialize, fetchUsers]);
+
+    // Clear error when component unmounts or error changes
+    useEffect(() => {
+        if (error) {
+            const timer = setTimeout(() => {
+                clearError();
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [error, clearError]);
+
     const handleCreateUser = async () => {
-        if (!newUser.email || !newUser.name || !newUser.password) {
+        if (!newUser.email || !newUser.username || !newUser.password) {
             toast({
                 title: "Validation Error",
                 description: "Please fill in all required fields.",
@@ -86,51 +81,56 @@ export default function UsersPage() {
         }
 
         try {
-            setIsLoading(true);
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            const user: User = {
-                id: Date.now().toString(),
-                email: newUser.email,
-                name: newUser.name,
-                role: newUser.role,
-                createdAt: new Date().toISOString(),
-                isActive: true,
-            };
-
-            setUsers(prev => [user, ...prev]);
+            await createUser(newUser);
             setShowCreateModal(false);
-            setNewUser({ email: '', name: '', role: 'editor', password: '' });
+            setNewUser({ email: '', username: '', password: '' });
 
             toast({
                 title: "User created",
-                description: `User ${newUser.name} has been created successfully.`,
+                description: `User ${newUser.username} has been created successfully.`,
             });
-        } catch {
+        } catch (error) {
             toast({
                 title: "Error",
-                description: "Failed to create user.",
+                description: error instanceof Error ? error.message : "Failed to create user.",
                 variant: "destructive",
             });
-        } finally {
-            setIsLoading(false);
         }
     };
 
-    const handleDeleteUser = async (id: string) => {
+    const handleEditUser = async () => {
+        if (!selectedUser) return;
+
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 500));
-            setUsers(prev => prev.filter(user => user.id !== id));
+            await updateUser(selectedUser.id, editUser);
+            setShowEditModal(false);
+            setSelectedUser(null);
+            setEditUser({});
+
             toast({
-                title: "User deleted",
-                description: "The user has been deleted successfully.",
+                title: "User updated",
+                description: "User has been updated successfully.",
             });
-        } catch {
+        } catch (error) {
             toast({
                 title: "Error",
-                description: "Failed to delete user.",
+                description: error instanceof Error ? error.message : "Failed to update user.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleDeleteUser = async (id: string, username: string) => {
+        try {
+            await deleteUser(id);
+            toast({
+                title: "User deleted",
+                description: `User ${username} has been deleted successfully.`,
+            });
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to delete user.",
                 variant: "destructive",
             });
         }
@@ -138,32 +138,17 @@ export default function UsersPage() {
 
     const handleToggleUserStatus = async (id: string) => {
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 300));
-            setUsers(prev => prev.map(user =>
-                user.id === id ? { ...user, isActive: !user.isActive } : user
-            ));
+            await toggleUserStatus(id);
             toast({
                 title: "Status updated",
                 description: "User status has been updated.",
             });
-        } catch {
+        } catch (error) {
             toast({
                 title: "Error",
-                description: "Failed to update user status.",
+                description: error instanceof Error ? error.message : "Failed to update user status.",
                 variant: "destructive",
             });
-        }
-    };
-
-    const getRoleBadge = (role: User['role']) => {
-        switch (role) {
-            case 'admin':
-                return { variant: 'default' as const, label: 'Admin', icon: Shield };
-            case 'editor':
-                return { variant: 'secondary' as const, label: 'Editor', icon: Pencil };
-            default:
-                return { variant: 'secondary' as const, label: 'Unknown', icon: Users };
         }
     };
 
@@ -173,8 +158,19 @@ export default function UsersPage() {
             : { variant: 'secondary' as const, label: 'Inactive', icon: UserX };
     };
 
+    // Show loading while auth is being checked
+    if (authLoading || !isAuthenticated) {
+        return (
+            <div className="p-6 space-y-6">
+                <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
+                    <span>Loading authentication...</span>
+                </div>
+            </div>
+        );
+    }
+
     const activeUsers = users.filter(user => user.isActive).length;
-    const adminUsers = users.filter(user => user.role === 'admin').length;
     const recentLogins = users.filter(user =>
         user.lastLogin &&
         new Date(user.lastLogin) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -204,17 +200,17 @@ export default function UsersPage() {
                         <DialogHeader>
                             <DialogTitle>Create New User</DialogTitle>
                             <DialogDescription>
-                                Add a new user to the dashboard with specific role and permissions.
+                                Add a new user to the dashboard.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="user-name">Full Name</Label>
+                                <Label htmlFor="user-username">Username</Label>
                                 <Input
-                                    id="user-name"
-                                    placeholder="John Doe"
-                                    value={newUser.name}
-                                    onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                                    id="user-username"
+                                    placeholder="johndoe"
+                                    value={newUser.username}
+                                    onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -237,23 +233,6 @@ export default function UsersPage() {
                                     onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="user-role">Role</Label>
-                                <Select
-                                    value={newUser.role}
-                                    onValueChange={(value: 'admin' | 'editor') =>
-                                        setNewUser(prev => ({ ...prev, role: value }))
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="editor">Editor</SelectItem>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
                         <DialogFooter>
                             <Button
@@ -271,8 +250,15 @@ export default function UsersPage() {
                 </Dialog>
             </div>
 
+            {/* Error Alert */}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
             {/* Quick Stats */}
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -289,15 +275,6 @@ export default function UsersPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{activeUsers}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Administrators</CardTitle>
-                        <Shield className="h-4 w-4 text-purple-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{adminUsers}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -343,7 +320,6 @@ export default function UsersPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>User</TableHead>
-                                    <TableHead>Role</TableHead>
                                     <TableHead>Created</TableHead>
                                     <TableHead>Last Login</TableHead>
                                     <TableHead>Status</TableHead>
@@ -352,9 +328,7 @@ export default function UsersPage() {
                             </TableHeader>
                             <TableBody>
                                 {users.map((user) => {
-                                    const roleBadge = getRoleBadge(user.role);
                                     const statusBadge = getStatusBadge(user.isActive);
-                                    const RoleIcon = roleBadge.icon;
                                     const StatusIcon = statusBadge.icon;
 
                                     return (
@@ -363,23 +337,17 @@ export default function UsersPage() {
                                                 <div className="flex items-center space-x-3">
                                                     <Avatar>
                                                         <AvatarFallback>
-                                                            {user.name.charAt(0).toUpperCase()}
+                                                            {user.username.charAt(0).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div>
-                                                        <div className="font-medium">{user.name}</div>
+                                                        <div className="font-medium">@{user.username}</div>
                                                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                                                             <Mail className="h-3 w-3" />
                                                             {user.email}
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={roleBadge.variant} className="flex items-center gap-1 w-fit">
-                                                    <RoleIcon className="h-3 w-3" />
-                                                    {roleBadge.label}
-                                                </Badge>
                                             </TableCell>
                                             <TableCell>
                                                 {new Date(user.createdAt).toLocaleDateString()}
@@ -401,6 +369,7 @@ export default function UsersPage() {
                                                     <Switch
                                                         checked={user.isActive}
                                                         onCheckedChange={() => handleToggleUserStatus(user.id)}
+                                                        disabled={isLoading}
                                                     />
                                                     <Badge variant={statusBadge.variant} className="flex items-center gap-1">
                                                         <StatusIcon className="h-3 w-3" />
@@ -415,14 +384,19 @@ export default function UsersPage() {
                                                         size="sm"
                                                         onClick={() => {
                                                             setSelectedUser(user);
+                                                            setEditUser({
+                                                                email: user.email,
+                                                                username: user.username,
+                                                            });
                                                             setShowEditModal(true);
                                                         }}
+                                                        disabled={isLoading}
                                                     >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
                                                     <AlertDialog>
                                                         <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="sm">
+                                                            <Button variant="ghost" size="sm" disabled={isLoading}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         </AlertDialogTrigger>
@@ -430,14 +404,14 @@ export default function UsersPage() {
                                                             <AlertDialogHeader>
                                                                 <AlertDialogTitle>Delete User</AlertDialogTitle>
                                                                 <AlertDialogDescription>
-                                                                    Are you sure you want to delete &quot;{user.name}&quot;?
+                                                                    Are you sure you want to delete &quot;{user.username}&quot;?
                                                                     This action cannot be undone and will revoke all access for this user.
                                                                 </AlertDialogDescription>
                                                             </AlertDialogHeader>
                                                             <AlertDialogFooter>
                                                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                                 <AlertDialogAction
-                                                                    onClick={() => handleDeleteUser(user.id)}
+                                                                    onClick={() => handleDeleteUser(user.id, user.username)}
                                                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                                                 >
                                                                     Delete
@@ -456,31 +430,64 @@ export default function UsersPage() {
                 </CardContent>
             </Card>
 
-            {/* Edit User Dialog */}
-            {selectedUser && (
-                <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>Edit User</DialogTitle>
-                            <DialogDescription>
-                                Update user information and permissions for {selectedUser.name}.
-                            </DialogDescription>
-                        </DialogHeader>
-                        {/* TODO: Add edit form */}
-                        <div className="p-4 text-center text-muted-foreground">
-                            Edit user form will be implemented here
+            {/* Edit User Modal */}
+            <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogDescription>
+                            Update user information.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedUser && (
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-user-username">Username</Label>
+                                <Input
+                                    id="edit-user-username"
+                                    value={editUser.username || ''}
+                                    onChange={(e) => setEditUser(prev => ({ ...prev, username: e.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-user-email">Email Address</Label>
+                                <Input
+                                    id="edit-user-email"
+                                    type="email"
+                                    value={editUser.email || ''}
+                                    onChange={(e) => setEditUser(prev => ({ ...prev, email: e.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-user-password">New Password (optional)</Label>
+                                <Input
+                                    id="edit-user-password"
+                                    type="password"
+                                    placeholder="Leave empty to keep current password"
+                                    value={editUser.password || ''}
+                                    onChange={(e) => setEditUser(prev => ({ ...prev, password: e.target.value }))}
+                                />
+                            </div>
                         </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowEditModal(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={() => setShowEditModal(false)}>
-                                Save Changes
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
+                    )}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowEditModal(false);
+                                setSelectedUser(null);
+                                setEditUser({});
+                            }}
+                            disabled={isLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleEditUser} disabled={isLoading}>
+                            {isLoading ? 'Updating...' : 'Update User'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 } 
