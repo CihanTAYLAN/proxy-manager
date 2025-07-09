@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { useAuth } from '@/context/auth-context';
+import { useAuthStore } from '@/context/auth-store';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -32,7 +32,7 @@ const navigation = [
  * Sidebar component for both desktop and mobile
  */
 function Sidebar({ className = '' }: { className?: string }) {
-    const { user, logout } = useAuth();
+    const { user, logout } = useAuthStore();
     const pathname = usePathname();
 
     const handleLogout = () => {
@@ -78,11 +78,11 @@ function Sidebar({ className = '' }: { className?: string }) {
                 <div className="flex items-center space-x-3">
                     <Avatar>
                         <AvatarFallback>
-                            {user?.name?.charAt(0) || 'A'}
+                            {user?.username?.charAt(0)?.toUpperCase() || 'A'}
                         </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{user?.name || 'Admin User'}</p>
+                        <p className="text-sm font-medium truncate">{user?.username || 'Admin User'}</p>
                         <p className="text-xs text-muted-foreground truncate">{user?.email || 'admin@example.com'}</p>
                     </div>
                     <Button

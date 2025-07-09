@@ -1,45 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { verifyPassword, generateToken } from "@/lib/auth";
+import { z } from "zod";
+
+// Input validation schema
+const loginSchema = z.object({
+	email: z.string().email("Invalid email format"),
+	password: z.string().min(1, "Password is required"),
+});
 
 /**
- * Mock login endpoint for testing
- * TODO: Replace with real authentication backend
+ * User login endpoint with database authentication
+ * Validates credentials against database and returns JWT token
  */
 export async function POST(request: NextRequest) {
 	try {
-		const { email, password } = await request.json();
+		const body = await request.json();
 
-		// Mock credentials (replace with real authentication)
-		const mockUsers = [
-			{
-				id: "1",
-				email: "admin@example.com",
-				password: "admin123", // In real app, this would be hashed
-				name: "Admin User",
-				role: "admin",
+		// Validate input
+		const result = loginSchema.safeParse(body);
+		if (!result.success) {
+			return NextResponse.json(
+				{
+					success: false,
+					error: "Invalid input",
+					details: result.error.issues,
+				},
+				{ status: 400 }
+			);
+		}
+
+		const { email, password } = result.data;
+
+		// Find user in database
+		const user = await prisma.user.findUnique({
+			where: { email },
+			select: {
+				id: true,
+				email: true,
+				username: true,
+				password: true,
+				isActive: true,
 			},
-		];
+		});
 
-		// Simple credential check
-		const user = mockUsers.find((u) => u.email === email && u.password === password);
+		// Check if user exists and is active
+		if (!user) {
+			return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
+		}
 
-		if (user) {
-			// Generate mock JWT token (in real app, use proper JWT)
-			const token = `mock-jwt-token-${user.id}-${Date.now()}`;
+		if (!user.isActive) {
+			return NextResponse.json({ success: false, error: "Account is disabled" }, { status: 401 });
+		}
 
-			return NextResponse.json({
-				success: true,
+		// Verify password
+		const isPasswordValid = await verifyPassword(password, user.password);
+		if (!isPasswordValid) {
+			return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
+		}
+
+		// Generate JWT token
+		const token = generateToken({
+			id: user.id,
+			email: user.email,
+			username: user.username,
+		});
+
+		// Create audit log for successful login
+		await prisma.auditLog.create({
+			data: {
+				action: "LOGIN",
+				resource: "USER",
+				resourceId: user.id,
+				details: {
+					email: user.email,
+					loginTime: new Date().toISOString(),
+				},
+				userId: user.id,
+				ipAddress: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown",
+				userAgent: request.headers.get("user-agent") || "unknown",
+			},
+		});
+
+		// Return successful response
+		return NextResponse.json({
+			success: true,
+			data: {
 				token,
 				user: {
 					id: user.id,
 					email: user.email,
-					name: user.name,
-					role: user.role,
+					username: user.username,
 				},
-			});
-		} else {
-			return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
-		}
-	} catch {
+			},
+			message: "Login successful",
+		});
+	} catch (error) {
+		console.error("Login error:", error);
 		return NextResponse.json({ success: false, error: "Login failed" }, { status: 500 });
 	}
 }
