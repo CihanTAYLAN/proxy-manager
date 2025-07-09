@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest, NextResponse } from "next/server";
-import { getProxies, createProxy, updateProxy, removeProxy, type ProxyFormData } from "@/lib/caddy-api";
+import { getProxies, createProxy, updateProxy, removeProxy } from "@/lib/caddy-api";
 import { verifyAuth } from "@/lib/auth";
+import { ProxyFormData } from "../../../context/proxy-store";
 
 /**
  * Retrieves all proxy configurations from Caddy server
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
 		const proxyData: ProxyFormData = {
 			domain: body.domain.trim().toLowerCase(),
 			target: body.target.trim(),
-			sslEnabled: body.sslEnabled ?? true,
+			tls: body.tls ?? true,
 		};
 
 		const createdProxy = await createProxy(proxyData);
@@ -157,7 +158,7 @@ export async function PUT(request: NextRequest) {
 		const updateData: Partial<ProxyFormData> = {};
 		if (body.domain) updateData.domain = body.domain.trim().toLowerCase();
 		if (body.target) updateData.target = body.target.trim();
-		if (body.sslEnabled !== undefined) updateData.sslEnabled = body.sslEnabled;
+		if (body.tls !== undefined) updateData.tls = body.tls;
 
 		const updatedProxy = await updateProxy(body.id, updateData);
 

@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Globe, Plus, Pencil, Trash2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
+import { Globe, Plus, Trash2, AlertCircle, CheckCircle, ExternalLink, Edit } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useProxyStore } from '@/context/proxy-store';
 import { useAuthStore } from '@/context/auth-store';
-import { type ProxyConfig } from '@/lib/caddy-api';
+import { type ProxyConfig } from '@/context/proxy-store';
 import ProxyForm from '@/components/ProxyForm';
 
 /**
@@ -53,19 +52,17 @@ export default function ProxiesPage() {
         hideModal();
     };
 
-    const getSSLBadge = (status: ProxyConfig['sslStatus']) => {
-        switch (status) {
-            case 'valid':
-                return { variant: 'default' as const, label: 'Valid SSL', icon: CheckCircle };
-            case 'expired':
-                return { variant: 'destructive' as const, label: 'SSL Expired', icon: AlertCircle };
-            case 'pending':
-                return { variant: 'secondary' as const, label: 'SSL Pending', icon: AlertCircle };
-            case 'invalid':
-                return { variant: 'destructive' as const, label: 'SSL Invalid', icon: AlertCircle };
-            default:
-                return { variant: 'secondary' as const, label: 'Unknown', icon: AlertCircle };
+    const getSSLBadge = (tls: boolean, status: ProxyConfig['status']) => {
+        if (!tls) {
+            return { variant: 'secondary' as const, label: 'No SSL', icon: AlertCircle };
         }
+
+        // For active proxies with TLS enabled, assume SSL is valid
+        if (status === 'active') {
+            return { variant: 'default' as const, label: 'SSL Enabled', icon: CheckCircle };
+        }
+
+        return { variant: 'secondary' as const, label: 'SSL Pending', icon: AlertCircle };
     };
 
     const getStatusBadge = (status: ProxyConfig['status']) => {
@@ -74,13 +71,15 @@ export default function ProxiesPage() {
                 return { variant: 'default' as const, label: 'Active' };
             case 'inactive':
                 return { variant: 'secondary' as const, label: 'Inactive' };
+            case 'error':
+                return { variant: 'destructive' as const, label: 'Error' };
             default:
                 return { variant: 'secondary' as const, label: 'Unknown' };
         }
     };
 
     const activeProxies = proxies.filter(proxy => proxy.status === 'active').length;
-    const sslIssues = proxies.filter(proxy => proxy.sslStatus === 'expired' || proxy.sslStatus === 'invalid').length;
+    const sslIssues = proxies.filter(proxy => proxy.status === 'error').length;
 
     // Show loading state if authentication is not ready
     if (!isAuthenticated) {
@@ -218,7 +217,7 @@ export default function ProxiesPage() {
                             </TableHeader>
                             <TableBody>
                                 {proxies.map((proxy) => {
-                                    const sslBadge = getSSLBadge(proxy.sslStatus);
+                                    const sslBadge = getSSLBadge(proxy.tls, proxy.status);
                                     const statusBadge = getStatusBadge(proxy.status);
                                     const SSLIcon = sslBadge.icon;
 
@@ -229,7 +228,7 @@ export default function ProxiesPage() {
                                                     {proxy.domain}
                                                     <Button variant="ghost" size="sm" asChild>
                                                         <a
-                                                            href={`https://${proxy.domain}`}
+                                                            href={`${proxy.tls ? 'https' : 'http'}://${proxy.domain}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                         >
@@ -239,9 +238,16 @@ export default function ProxiesPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <code className="text-sm bg-muted px-2 py-1 rounded">
-                                                    {proxy.target}
-                                                </code>
+                                                <div className="space-y-1">
+                                                    <code className="text-sm bg-muted px-2 py-1 rounded block">
+                                                        {proxy.target}{proxy.port ? `:${proxy.port}` : ''}
+                                                    </code>
+                                                    {proxy.path && (
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Path: {proxy.path}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant={sslBadge.variant} className="flex items-center gap-1 w-fit">
@@ -255,39 +261,24 @@ export default function ProxiesPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex justify-end gap-2">
                                                     <Button
-                                                        variant="ghost"
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() => showEditModal(proxy)}
                                                     >
-                                                        <Pencil className="h-4 w-4" />
+                                                        <Edit className="h-4 w-4 mr-1" />
+                                                        Edit
                                                     </Button>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="sm">
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    Are you sure you want to delete the proxy for &quot;{proxy.domain}&quot;?
-                                                                    This action cannot be undone and will immediately stop routing traffic.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction
-                                                                    onClick={() => handleDeleteProxy(proxy.id)}
-                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                                >
-                                                                    Delete
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteProxy(proxy.id)}
+                                                        className="text-destructive hover:text-destructive"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-1" />
+                                                        Delete
+                                                    </Button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

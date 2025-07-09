@@ -1,13 +1,12 @@
 import { create } from "zustand";
+import { apiClient } from "@/lib/api-client";
 
 export interface APIToken {
 	id: string;
 	name: string;
-	token: string;
 	permissions: string[];
+	lastUsed: string | null;
 	createdAt: string;
-	lastUsed?: string;
-	expiresAt?: string;
 	isActive: boolean;
 }
 
@@ -16,7 +15,7 @@ interface TokenState {
 	isLoading: boolean;
 	error: string | null;
 	isCreateModalOpen: boolean;
-	newToken: string | null; // For showing newly created token
+	newToken: string | null;
 }
 
 interface TokenActions {
@@ -26,10 +25,10 @@ interface TokenActions {
 	toggleTokenStatus: (id: string) => Promise<void>;
 	setLoading: (loading: boolean) => void;
 	setError: (error: string | null) => void;
+	clearError: () => void;
 	openCreateModal: () => void;
 	closeCreateModal: () => void;
 	clearNewToken: () => void;
-	clearError: () => void;
 }
 
 /**
@@ -49,12 +48,8 @@ export const useTokenStore = create<TokenState & TokenActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/tokens");
-			if (!response.ok) {
-				throw new Error("Failed to fetch API tokens");
-			}
+			const data = await apiClient.get("/api/tokens");
 
-			const data = await response.json();
 			if (data.success) {
 				set({ tokens: data.data, isLoading: false });
 			} else {
@@ -72,19 +67,8 @@ export const useTokenStore = create<TokenState & TokenActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/tokens", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ name, permissions }),
-			});
+			const data = await apiClient.post("/api/tokens", { name, permissions });
 
-			if (!response.ok) {
-				throw new Error("Failed to create API token");
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				set({
 					newToken: data.data.token,
@@ -108,15 +92,8 @@ export const useTokenStore = create<TokenState & TokenActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch(`/api/tokens?id=${id}`, {
-				method: "DELETE",
-			});
+			const data = await apiClient.delete(`/api/tokens?id=${id}`);
 
-			if (!response.ok) {
-				throw new Error("Failed to delete API token");
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh tokens list
 				await get().fetchTokens();
@@ -136,19 +113,8 @@ export const useTokenStore = create<TokenState & TokenActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/tokens/toggle", {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ id }),
-			});
+			const data = await apiClient.put("/api/tokens/toggle", { id });
 
-			if (!response.ok) {
-				throw new Error("Failed to toggle token status");
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh tokens list
 				await get().fetchTokens();

@@ -22,7 +22,7 @@
 *.{$HOST} {
 	# Varsayılan olarak 404, dinamik kurallar REST API ile eklenecek
 	# test.example.com, api.example.com gibi subdomain'ler buraya düşecek
-	respond "Proxy Manager - Subdomain not configured" 404
+	respond "Proxy Manager - Domain not configured" 404
 }
 
 # HTTP to HTTPS redirect

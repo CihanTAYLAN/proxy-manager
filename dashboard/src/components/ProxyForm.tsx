@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useProxyStore } from "@/context/proxy-store";
-import { type ProxyConfig, type ProxyFormData } from "@/lib/caddy-api";
+import { type ProxyConfig, type ProxyFormData } from "@/context/proxy-store";
 
 interface ProxyFormProps {
     mode: "create" | "edit";
@@ -28,7 +28,10 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
     const [formData, setFormData] = useState<ProxyFormData>({
         domain: "",
         target: "",
-        sslEnabled: true,
+        port: undefined,
+        path: undefined,
+        headers: {},
+        tls: true,
     });
 
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -39,7 +42,10 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
             setFormData({
                 domain: proxy.domain,
                 target: proxy.target,
-                sslEnabled: proxy.sslEnabled,
+                port: proxy.port,
+                path: proxy.path,
+                headers: proxy.headers || {},
+                tls: proxy.tls,
             });
         }
     }, [mode, proxy]);
@@ -70,10 +76,11 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
         // Validate target
         if (!formData.target.trim()) {
             errors.target = "Target is required";
-        } else {
-            if (!formData.target.includes(":")) {
-                errors.target = "Target must include port (e.g., localhost:3000)";
-            }
+        }
+
+        // Validate port if provided
+        if (formData.port && (formData.port < 1 || formData.port > 65535)) {
+            errors.port = "Port must be between 1 and 65535";
         }
 
         setValidationErrors(errors);
@@ -94,7 +101,10 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
             const submitData: ProxyFormData = {
                 domain: formData.domain.trim().toLowerCase(),
                 target: formData.target.trim(),
-                sslEnabled: formData.sslEnabled,
+                port: formData.port || undefined,
+                path: formData.path?.trim() || undefined,
+                headers: formData.headers || {},
+                tls: formData.tls,
             };
 
             if (mode === "create") {
@@ -113,7 +123,7 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
     /**
      * Updates form field value
      */
-    const handleFieldChange = (field: keyof ProxyFormData, value: string | boolean) => {
+    const handleFieldChange = (field: keyof ProxyFormData, value: string | number | boolean | undefined) => {
         setFormData(prev => ({
             ...prev,
             [field]: value,
@@ -128,13 +138,19 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
             setFormData({
                 domain: "",
                 target: "",
-                sslEnabled: true,
+                port: undefined,
+                path: undefined,
+                headers: {},
+                tls: true,
             });
         } else if (proxy) {
             setFormData({
                 domain: proxy.domain,
                 target: proxy.target,
-                sslEnabled: proxy.sslEnabled,
+                port: proxy.port,
+                path: proxy.path,
+                headers: proxy.headers || {},
+                tls: proxy.tls,
             });
         }
         setValidationErrors({});
@@ -177,7 +193,7 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
                 <Input
                     id="target"
                     type="text"
-                    placeholder="localhost:3000"
+                    placeholder="localhost"
                     value={formData.target}
                     onChange={(e) => handleFieldChange("target", e.target.value)}
                     className={validationErrors.target ? "border-destructive" : ""}
@@ -187,52 +203,76 @@ export default function ProxyForm({ mode, proxy, onSuccess, onCancel }: ProxyFor
                     <p className="text-sm text-destructive">{validationErrors.target}</p>
                 )}
                 <p className="text-sm text-muted-foreground">
-                    The backend service address and port (e.g., localhost:3000, 192.168.1.100:8080)
+                    The backend service hostname or IP address (e.g., localhost, 192.168.1.100)
                 </p>
             </div>
 
-            {/* SSL Enabled Field */}
+            {/* Port Field */}
+            <div className="space-y-2">
+                <Label htmlFor="port">Port</Label>
+                <Input
+                    id="port"
+                    type="number"
+                    placeholder="3000"
+                    value={formData.port || ""}
+                    onChange={(e) => handleFieldChange("port", e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                    className={validationErrors.port ? "border-destructive" : ""}
+                    disabled={isLoading}
+                    min="1"
+                    max="65535"
+                />
+                {validationErrors.port && (
+                    <p className="text-sm text-destructive">{validationErrors.port}</p>
+                )}
+                <p className="text-sm text-muted-foreground">
+                    The port number of your backend service (e.g., 3000, 8080)
+                </p>
+            </div>
+
+            {/* Path Field */}
+            <div className="space-y-2">
+                <Label htmlFor="path">Path</Label>
+                <Input
+                    id="path"
+                    type="text"
+                    placeholder="/api/*"
+                    value={formData.path || ""}
+                    onChange={(e) => handleFieldChange("path", e.target.value || undefined)}
+                    disabled={isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                    Optional path pattern to match (e.g., /api/*, /v1/*)
+                </p>
+            </div>
+
+            {/* SSL/TLS Field */}
             <div className="flex items-center justify-between space-x-2">
                 <div className="space-y-1">
-                    <Label htmlFor="ssl-enabled">SSL/TLS Certificate</Label>
+                    <Label htmlFor="tls">SSL/TLS Certificate</Label>
                     <p className="text-sm text-muted-foreground">
                         Automatically obtain and manage SSL certificates for this domain
                     </p>
                 </div>
                 <Switch
-                    id="ssl-enabled"
-                    checked={formData.sslEnabled}
-                    onCheckedChange={(checked) => handleFieldChange("sslEnabled", checked)}
+                    id="tls"
+                    checked={formData.tls}
+                    onCheckedChange={(checked) => handleFieldChange("tls", checked)}
                     disabled={isLoading}
                 />
             </div>
 
             {/* Form Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+            <div className="flex justify-end space-x-3 pt-4">
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+                    Cancel
+                </Button>
+                <Button type="button" variant="ghost" onClick={handleReset} disabled={isLoading}>
+                    Reset
+                </Button>
+                <Button type="submit" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {mode === "create" ? "Create Proxy" : "Update Proxy"}
                 </Button>
-                <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleReset}
-                    disabled={isLoading}
-                    className="w-full sm:w-auto"
-                >
-                    Reset
-                </Button>
-                {onCancel && (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={onCancel}
-                        disabled={isLoading}
-                        className="w-full sm:w-auto"
-                    >
-                        Cancel
-                    </Button>
-                )}
             </div>
         </form>
     );

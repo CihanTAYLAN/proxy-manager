@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { apiClient } from "@/lib/api-client";
 
 export interface User {
 	id: string;
@@ -51,31 +52,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 				set({ isLoading: true, error: null });
 
 				try {
-					const response = await fetch("/api/auth/login", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({ email, password }),
-					});
-
-					// Always try to parse JSON response, even for errors
-					let data;
-					try {
-						data = await response.json();
-					} catch (parseError) {
-						console.error("Failed to parse response JSON:", parseError);
-						throw new Error(`Login failed: ${response.status} ${response.statusText}`);
-					}
-
-					if (!response.ok) {
-						// Handle validation errors specifically
-						if (data.details && Array.isArray(data.details)) {
-							const validationMessages = data.details.map((detail: any) => detail.message).join(", ");
-							throw new Error(validationMessages);
-						}
-						throw new Error(data.error || `Login failed: ${response.status} ${response.statusText}`);
-					}
+					const data = await apiClient.post("/api/auth/login", { email, password }, { skipAuth: true });
 
 					if (data.success) {
 						set({
@@ -103,12 +80,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 				try {
 					const { token } = get();
 					if (token) {
-						await fetch("/api/auth/logout", {
-							method: "POST",
-							headers: {
-								Authorization: `Bearer ${token}`,
-							},
-						});
+						await apiClient.post("/api/auth/logout");
 					}
 				} catch (error) {
 					console.error("Logout error:", error);
@@ -138,17 +110,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 				set({ isLoading: true, error: null });
 
 				try {
-					const response = await fetch("/api/auth/verify", {
-						headers: {
-							Authorization: `Bearer ${token}`,
-						},
-					});
-
-					if (!response.ok) {
-						throw new Error("Token verification failed");
-					}
-
-					const data = await response.json();
+					const data = await apiClient.get("/api/auth/verify");
 
 					if (data.success) {
 						set({
@@ -176,13 +138,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 				set({ isLoading: true, error: null });
 
 				try {
-					const response = await fetch("/api/auth/setup/check");
-
-					if (!response.ok) {
-						throw new Error("Failed to check setup status");
-					}
-
-					const data = await response.json();
+					const data = await apiClient.get("/api/auth/setup/check", { skipAuth: true });
 
 					if (data.success) {
 						set({
@@ -210,34 +166,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
 				try {
 					console.log("Making API call to /api/auth/setup");
-					const response = await fetch("/api/auth/setup", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({ email, username, password }),
-					});
+					const data = await apiClient.post("/api/auth/setup", { email, username, password }, { skipAuth: true });
 
-					console.log("API response status:", response.status);
-
-					// Always try to parse JSON response, even for errors
-					let data;
-					try {
-						data = await response.json();
-						console.log("API response data:", data);
-					} catch (parseError) {
-						console.error("Failed to parse response JSON:", parseError);
-						throw new Error(`Setup failed: ${response.status} ${response.statusText}`);
-					}
-
-					if (!response.ok) {
-						// Handle validation errors specifically
-						if (data.details && Array.isArray(data.details)) {
-							const validationMessages = data.details.map((detail: any) => detail.message).join(", ");
-							throw new Error(validationMessages);
-						}
-						throw new Error(data.error || `Setup failed: ${response.status} ${response.statusText}`);
-					}
+					console.log("API response data:", data);
 
 					if (data.success) {
 						console.log("Setup successful, updating auth state");
@@ -279,3 +210,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 		}
 	)
 );
+
+// Register auth store with API client for 401 handling
+apiClient.setAuthStore(useAuthStore);

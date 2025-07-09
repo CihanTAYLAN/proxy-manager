@@ -13,13 +13,13 @@
 }
 
 # Ana proxy server - development için
-:80 {
+{$HOST}:80 {
 	# Varsayılan olarak dashboard'a yönlendir
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:3000 
 }
 
 # HTTPS port
-:443 {
+{$HOST}:443 {
 	# Varsayılan olarak dashboard'a yönlendir
 	reverse_proxy 127.0.0.1:3000
 } 

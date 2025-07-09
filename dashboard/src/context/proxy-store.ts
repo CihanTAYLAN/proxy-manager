@@ -1,6 +1,25 @@
 import { create } from "zustand";
-import { type ProxyConfig, type ProxyFormData } from "@/lib/caddy-api";
-import { useAuthStore } from "./auth-store";
+import { apiClient } from "@/lib/api-client";
+
+export interface ProxyConfig {
+	id: string;
+	domain: string;
+	target: string;
+	port?: number;
+	path?: string;
+	headers?: Record<string, string>;
+	tls: boolean;
+	status: "active" | "inactive" | "error";
+}
+
+export interface ProxyFormData {
+	domain: string;
+	target: string;
+	port?: number;
+	path?: string;
+	headers?: Record<string, string>;
+	tls: boolean;
+}
 
 interface ProxyState {
 	proxies: ProxyConfig[];
@@ -13,35 +32,16 @@ interface ProxyState {
 
 interface ProxyActions {
 	fetchProxies: () => Promise<void>;
-	createProxy: (data: ProxyFormData) => Promise<void>;
-	updateProxy: (id: string, data: Partial<ProxyFormData>) => Promise<void>;
+	createProxy: (proxyData: ProxyFormData) => Promise<void>;
+	updateProxy: (id: string, proxyData: ProxyFormData) => Promise<void>;
 	deleteProxy: (id: string) => Promise<void>;
 	setSelectedProxy: (proxy: ProxyConfig | null) => void;
 	setLoading: (loading: boolean) => void;
 	setError: (error: string | null) => void;
+	clearError: () => void;
 	showCreateModal: () => void;
 	showEditModal: (proxy: ProxyConfig) => void;
 	hideModal: () => void;
-	clearError: () => void;
-}
-
-/**
- * Gets auth token from auth store
- */
-function getAuthToken(): string | null {
-	const authState = useAuthStore.getState();
-	return authState.token;
-}
-
-/**
- * Creates authenticated fetch headers
- */
-function getAuthHeaders(): HeadersInit {
-	const token = getAuthToken();
-	return {
-		"Content-Type": "application/json",
-		...(token && { Authorization: `Bearer ${token}` }),
-	};
 }
 
 /**
@@ -62,19 +62,8 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/proxies", {
-				method: "GET",
-				headers: getAuthHeaders(),
-			});
+			const data = await apiClient.get("/api/proxies");
 
-			if (!response.ok) {
-				if (response.status === 401) {
-					throw new Error("Authentication required");
-				}
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				set({ proxies: data.data, isLoading: false });
 			} else {
@@ -92,20 +81,8 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/proxies", {
-				method: "POST",
-				headers: getAuthHeaders(),
-				body: JSON.stringify(proxyData),
-			});
+			const data = await apiClient.post("/api/proxies", proxyData);
 
-			if (!response.ok) {
-				if (response.status === 401) {
-					throw new Error("Authentication required");
-				}
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh proxies list
 				await get().fetchProxies();
@@ -125,20 +102,8 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/proxies", {
-				method: "PUT",
-				headers: getAuthHeaders(),
-				body: JSON.stringify({ id, ...proxyData }),
-			});
+			const data = await apiClient.put("/api/proxies", { id, ...proxyData });
 
-			if (!response.ok) {
-				if (response.status === 401) {
-					throw new Error("Authentication required");
-				}
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh proxies list
 				await get().fetchProxies();
@@ -158,19 +123,8 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch(`/api/proxies?id=${encodeURIComponent(id)}`, {
-				method: "DELETE",
-				headers: getAuthHeaders(),
-			});
+			const data = await apiClient.delete(`/api/proxies?id=${encodeURIComponent(id)}`);
 
-			if (!response.ok) {
-				if (response.status === 401) {
-					throw new Error("Authentication required");
-				}
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh proxies list
 				await get().fetchProxies();

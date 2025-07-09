@@ -31,7 +31,6 @@ export default function UsersPage() {
         createUser,
         updateUser,
         deleteUser,
-        toggleUserStatus,
         clearError,
         initialize
     } = useUserStore();
@@ -138,7 +137,13 @@ export default function UsersPage() {
 
     const handleToggleUserStatus = async (id: string) => {
         try {
-            await toggleUserStatus(id);
+            // Find the user and toggle their status
+            const user = users.find(u => u.id === id);
+            if (!user) {
+                throw new Error("User not found");
+            }
+
+            await updateUser(id, { isActive: !user.isActive });
             toast({
                 title: "Status updated",
                 description: "User status has been updated.",

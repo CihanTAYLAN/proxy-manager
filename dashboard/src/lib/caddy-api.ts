@@ -4,6 +4,8 @@
  * Handles communication with Caddy server API for proxy management
  */
 
+import { ProxyConfig, ProxyFormData } from "@/context/proxy-store";
+
 const CADDY_API_BASE_URL = process.env.CADDY_API_URL || "http://127.0.0.1:2019";
 
 export interface CaddyConfig {
@@ -36,7 +38,9 @@ export interface CaddyRoute {
 		upstreams?: Array<{
 			dial: string;
 		}>;
+		[key: string]: any;
 	}>;
+	[key: string]: any;
 }
 
 export interface CaddyTLS {
@@ -44,29 +48,6 @@ export interface CaddyTLS {
 	automation: {
 		policies: Array<Record<string, unknown>>;
 	};
-}
-
-/**
- * Standardized proxy configuration interface
- */
-export interface ProxyConfig {
-	id: string;
-	domain: string;
-	target: string;
-	sslEnabled: boolean;
-	sslStatus: "valid" | "invalid" | "expired" | "pending";
-	status: "active" | "inactive";
-	createdAt: string;
-	updatedAt: string;
-}
-
-/**
- * Proxy creation/update data interface
- */
-export interface ProxyFormData {
-	domain: string;
-	target: string;
-	sslEnabled?: boolean;
 }
 
 /**
@@ -79,7 +60,8 @@ export async function getCaddyConfig(): Promise<CaddyConfig> {
 		if (!response.ok) {
 			throw new Error(`Failed to fetch Caddy config: ${response.statusText}`);
 		}
-		return await response.json();
+		const data = await response.json();
+		return data;
 	} catch (error) {
 		throw new Error(`Error fetching Caddy config: ${error}`);
 	}
@@ -118,18 +100,65 @@ export async function updateCaddyConfig(config: CaddyConfig): Promise<boolean> {
 export function parseProxiesFromCaddyConfig(config: CaddyConfig): ProxyConfig[] {
 	const proxies: ProxyConfig[] = [];
 
+	// Handle case where config might be empty or malformed
+	if (!config?.apps?.http?.servers) {
+		console.warn("No HTTP servers found in Caddy config");
+		return [];
+	}
+
 	Object.entries(config.apps.http.servers).forEach(([serverKey, server]) => {
+		if (!server?.routes) {
+			return;
+		}
+
 		server.routes.forEach((route, index) => {
+			console.log(route);
+
 			// Check if this is a reverse proxy route
 			const reverseProxyHandler = route.handle?.find((h) => h.handler === "reverse_proxy");
-			if (!reverseProxyHandler || !reverseProxyHandler.upstreams) return;
+			if (!reverseProxyHandler || !reverseProxyHandler.upstreams || !reverseProxyHandler.upstreams.length) {
+				return;
+			}
 
 			// Extract domain from match conditions
 			const hostMatch = route.match?.find((m) => m.host && m.host.length > 0);
-			if (!hostMatch || !hostMatch.host) return;
+			if (!hostMatch || !hostMatch.host || !hostMatch.host.length) {
+				return;
+			}
 
 			const domain = hostMatch.host[0];
-			const target = reverseProxyHandler.upstreams[0].dial;
+			const targetDial = reverseProxyHandler.upstreams[0].dial;
+
+			// Parse target URL and port
+			let target = targetDial;
+			let port: number | undefined;
+
+			// Extract port from dial string (e.g., "localhost:3000" -> target: "localhost", port: 3000)
+			if (targetDial && !targetDial.startsWith("http")) {
+				const [host, portStr] = targetDial.split(":");
+				target = host;
+				if (portStr) {
+					port = parseInt(portStr, 10);
+				}
+			} else if (targetDial && targetDial.startsWith("http")) {
+				try {
+					const url = new URL(targetDial);
+					target = url.hostname;
+					if (url.port) {
+						port = parseInt(url.port, 10);
+					}
+				} catch (error) {
+					console.warn(`Failed to parse URL: ${targetDial}`, error);
+					target = targetDial;
+				}
+			}
+
+			// Extract path from match conditions
+			const pathMatch = route.match?.find((m) => m.path && m.path.length > 0);
+			const path = pathMatch?.path?.[0];
+
+			// Determine if TLS is enabled
+			const tls = server.listen.some((listenAddr) => listenAddr.includes("443") || listenAddr.includes("tls"));
 
 			// Generate unique ID based on domain and server
 			const id = `${serverKey}_${index}_${domain.replace(/[^a-zA-Z0-9]/g, "_")}`;
@@ -137,12 +166,12 @@ export function parseProxiesFromCaddyConfig(config: CaddyConfig): ProxyConfig[] 
 			proxies.push({
 				id,
 				domain,
-				target: target.startsWith("http") ? target : `http://${target}`,
-				sslEnabled: server.listen.some((port) => port.includes("443")),
-				sslStatus: "valid", // TODO: Implement SSL status checking
-				status: "active", // TODO: Implement status checking
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
+				target,
+				port,
+				path,
+				headers: {}, // TODO: Extract headers from route configuration if present
+				tls,
+				status: "active", // TODO: Implement actual status checking
 			});
 		});
 	});
@@ -159,6 +188,7 @@ export async function getProxies(): Promise<ProxyConfig[]> {
 		const config = await getCaddyConfig();
 		return parseProxiesFromCaddyConfig(config);
 	} catch (error) {
+		console.error("Error fetching proxies:", error);
 		throw new Error(`Error fetching proxies: ${error}`);
 	}
 }
@@ -172,15 +202,31 @@ export async function createProxy(proxyData: ProxyFormData): Promise<ProxyConfig
 	try {
 		const config = await getCaddyConfig();
 
-		// Clean target URL
-		const cleanTarget = proxyData.target.replace(/^https?:\/\//, "");
+		// Prepare target with port
+		let targetDial = proxyData.target;
+		if (proxyData.port) {
+			targetDial = `${proxyData.target}:${proxyData.port}`;
+		}
 
 		const newRoute: CaddyRoute = {
-			match: [{ host: [proxyData.domain] }],
+			match: [
+				{
+					host: [proxyData.domain],
+					...(proxyData.path && { path: [proxyData.path] }),
+				},
+			],
 			handle: [
 				{
 					handler: "reverse_proxy",
-					upstreams: [{ dial: cleanTarget }],
+					upstreams: [{ dial: targetDial }],
+					...(proxyData.headers &&
+						Object.keys(proxyData.headers).length > 0 && {
+							headers: {
+								request: {
+									set: proxyData.headers,
+								},
+							},
+						}),
 				},
 			],
 		};
@@ -188,29 +234,30 @@ export async function createProxy(proxyData: ProxyFormData): Promise<ProxyConfig
 		// Add route to first server or create new server
 		const serverKey = Object.keys(config.apps.http.servers)[0] || "proxy";
 		if (!config.apps.http.servers[serverKey]) {
+			const listenPorts = proxyData.tls ? [":80", ":443"] : [":80"];
 			config.apps.http.servers[serverKey] = {
-				listen: [":80", ":443"],
+				listen: listenPorts,
 				routes: [],
 			};
 		}
 
 		config.apps.http.servers[serverKey].routes.push(newRoute);
 
+		// Update Caddy configuration
 		await updateCaddyConfig(config);
 
-		// Return the created proxy config
-		const id = `${serverKey}_${config.apps.http.servers[serverKey].routes.length - 1}_${proxyData.domain.replace(/[^a-zA-Z0-9]/g, "_")}`;
-		return {
-			id,
-			domain: proxyData.domain,
-			target: proxyData.target.startsWith("http") ? proxyData.target : `http://${proxyData.target}`,
-			sslEnabled: proxyData.sslEnabled ?? true,
-			sslStatus: "pending",
-			status: "active",
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
+		// Return the created proxy configuration
+		const updatedConfig = await getCaddyConfig();
+		const proxies = parseProxiesFromCaddyConfig(updatedConfig);
+		const createdProxy = proxies.find((p) => p.domain === proxyData.domain);
+
+		if (!createdProxy) {
+			throw new Error("Failed to create proxy configuration");
+		}
+
+		return createdProxy;
 	} catch (error) {
+		console.error("Error creating proxy:", error);
 		throw new Error(`Error creating proxy: ${error}`);
 	}
 }
@@ -223,92 +270,90 @@ export async function createProxy(proxyData: ProxyFormData): Promise<ProxyConfig
  */
 export async function updateProxy(proxyId: string, proxyData: Partial<ProxyFormData>): Promise<ProxyConfig> {
 	try {
-		// For updates, we need to remove the old route and add a new one
-		// First get current config
-		const config = await getCaddyConfig();
-		const currentProxies = parseProxiesFromCaddyConfig(config);
-		const currentProxy = currentProxies.find((p) => p.id === proxyId);
-
-		if (!currentProxy) {
-			throw new Error(`Proxy with ID ${proxyId} not found`);
-		}
-
-		// Remove old route
+		// First remove the existing proxy
 		await removeProxy(proxyId);
 
-		// Create new route with updated data
-		const updatedData: ProxyFormData = {
-			domain: proxyData.domain ?? currentProxy.domain,
-			target: proxyData.target ?? currentProxy.target,
-			sslEnabled: proxyData.sslEnabled ?? currentProxy.sslEnabled,
+		// Then create a new one with updated data
+		if (!proxyData.domain || !proxyData.target) {
+			throw new Error("Domain and target are required for proxy update");
+		}
+
+		const fullProxyData: ProxyFormData = {
+			domain: proxyData.domain,
+			target: proxyData.target,
+			port: proxyData.port,
+			path: proxyData.path,
+			headers: proxyData.headers || {},
+			tls: proxyData.tls || false,
 		};
 
-		return await createProxy(updatedData);
+		return await createProxy(fullProxyData);
 	} catch (error) {
+		console.error("Error updating proxy:", error);
 		throw new Error(`Error updating proxy: ${error}`);
 	}
 }
 
 /**
- * Removes a proxy route from Caddy configuration
- * @param proxyId - ID of proxy to remove
+ * Removes a proxy configuration from Caddy
+ * @param proxyId - ID of the proxy to remove
  * @returns Promise with success status
  */
 export async function removeProxy(proxyId: string): Promise<boolean> {
 	try {
 		const config = await getCaddyConfig();
-		const currentProxies = parseProxiesFromCaddyConfig(config);
-		const targetProxy = currentProxies.find((p) => p.id === proxyId);
 
-		if (!targetProxy) {
+		// Find and remove the route by ID
+		let routeFound = false;
+		Object.entries(config.apps.http.servers).forEach(([serverKey, server]) => {
+			if (server.routes) {
+				server.routes = server.routes.filter((route, index) => {
+					const routeId = `${serverKey}_${index}_${route.match?.[0]?.host?.[0]?.replace(/[^a-zA-Z0-9]/g, "_")}`;
+					if (routeId === proxyId) {
+						routeFound = true;
+						return false;
+					}
+					return true;
+				});
+			}
+		});
+
+		if (!routeFound) {
 			throw new Error(`Proxy with ID ${proxyId} not found`);
 		}
-
-		// Remove routes matching the domain
-		Object.keys(config.apps.http.servers).forEach((serverKey) => {
-			const server = config.apps.http.servers[serverKey];
-			server.routes = server.routes.filter((route) => {
-				return !route.match.some((match) => match.host && match.host.includes(targetProxy.domain));
-			});
-		});
 
 		await updateCaddyConfig(config);
 		return true;
 	} catch (error) {
+		console.error("Error removing proxy:", error);
 		throw new Error(`Error removing proxy: ${error}`);
 	}
 }
 
-/**
- * Legacy function - kept for backwards compatibility
- * @deprecated Use removeProxy instead
- */
+// Legacy functions for backward compatibility
 export async function removeProxyRoute(domain: string): Promise<boolean> {
 	try {
 		const config = await getCaddyConfig();
+		const proxies = parseProxiesFromCaddyConfig(config);
+		const proxy = proxies.find((p) => p.domain === domain);
 
-		Object.keys(config.apps.http.servers).forEach((serverKey) => {
-			const server = config.apps.http.servers[serverKey];
-			server.routes = server.routes.filter((route) => {
-				return !route.match.some((match) => match.host && match.host.includes(domain));
-			});
-		});
+		if (!proxy) {
+			throw new Error(`Proxy for domain ${domain} not found`);
+		}
 
-		return await updateCaddyConfig(config);
+		return await removeProxy(proxy.id);
 	} catch (error) {
+		console.error("Error removing proxy route:", error);
 		throw new Error(`Error removing proxy route: ${error}`);
 	}
 }
 
-/**
- * Legacy function - kept for backwards compatibility
- * @deprecated Use createProxy instead
- */
 export async function addProxyRoute(domain: string, target: string): Promise<boolean> {
 	try {
-		await createProxy({ domain, target });
+		await createProxy({ domain, target, tls: false });
 		return true;
 	} catch (error) {
+		console.error("Error adding proxy route:", error);
 		throw new Error(`Error adding proxy route: ${error}`);
 	}
 }

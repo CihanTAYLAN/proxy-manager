@@ -1,14 +1,14 @@
 import { create } from "zustand";
+import { apiClient } from "@/lib/api-client";
 
 export interface SSLCertificate {
-	id: string;
 	domain: string;
+	status: "valid" | "expiring" | "expired" | "pending" | "error";
 	issuer: string;
-	validFrom: string;
-	validTo: string;
-	status: "valid" | "invalid" | "expired" | "expiring" | "pending";
-	autoRenewal: boolean;
+	issuedAt: string;
+	expiresAt: string;
 	daysUntilExpiry: number;
+	autoRenew: boolean;
 }
 
 interface SSLState {
@@ -42,12 +42,8 @@ export const useSSLStore = create<SSLState & SSLActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/ssl");
-			if (!response.ok) {
-				throw new Error("Failed to fetch SSL certificates");
-			}
+			const data = await apiClient.get("/api/ssl");
 
-			const data = await response.json();
 			if (data.success) {
 				set({
 					certificates: data.data.certificates || [],
@@ -69,19 +65,8 @@ export const useSSLStore = create<SSLState & SSLActions>((set, get) => ({
 		set({ isLoading: true, error: null });
 
 		try {
-			const response = await fetch("/api/ssl/refresh", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ domain }),
-			});
+			const data = await apiClient.post("/api/ssl/refresh", { domain });
 
-			if (!response.ok) {
-				throw new Error("Failed to refresh SSL certificate");
-			}
-
-			const data = await response.json();
 			if (data.success) {
 				// Refresh certificates list
 				await get().fetchCertificates();
