@@ -1,198 +1,256 @@
 'use client';
+import { useState, useEffect } from 'react';
+import { Shield, RefreshCw, AlertTriangle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-import { useEffect } from 'react';
-import { useSSLStore } from '@/context/ssl-store';
+// Mock SSL certificate data
+interface SSLCertificate {
+    id: string;
+    domain: string;
+    issuer: string;
+    validTo: string;
+    daysUntilExpiry: number;
+    status: 'valid' | 'expiring' | 'expired' | 'error';
+    autoRenewal: boolean;
+}
+
+const mockCertificates: SSLCertificate[] = [
+    {
+        id: '1',
+        domain: 'api.example.com',
+        issuer: "Let's Encrypt",
+        validTo: '2024-12-31',
+        daysUntilExpiry: 45,
+        status: 'valid',
+        autoRenewal: true
+    },
+    {
+        id: '2',
+        domain: 'app.example.com',
+        issuer: "Let's Encrypt",
+        validTo: '2024-02-15',
+        daysUntilExpiry: 7,
+        status: 'expiring',
+        autoRenewal: true
+    },
+    {
+        id: '3',
+        domain: 'old.example.com',
+        issuer: "Let's Encrypt",
+        validTo: '2024-01-01',
+        daysUntilExpiry: -30,
+        status: 'expired',
+        autoRenewal: false
+    }
+];
 
 /**
- * SSL Certificate management page - displays certificate status and validity
+ * SSL Certificates management page
  */
 export default function SSLPage() {
-    const {
-        certificates,
-        isLoading,
-        error,
-        lastChecked,
-        fetchCertificates,
-        refreshCertificate,
-        clearError,
-    } = useSSLStore();
+    const [certificates, setCertificates] = useState<SSLCertificate[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [lastChecked, setLastChecked] = useState<string | null>(null);
+
+    const fetchCertificates = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            setCertificates(mockCertificates);
+            setLastChecked(new Date().toISOString());
+        } catch {
+            setError('Failed to fetch SSL certificates');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchCertificates();
-    }, [fetchCertificates]);
+    }, []);
 
-    const getStatusBadge = (status: string, daysUntilExpiry: number) => {
-        const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
-
+    const getStatusBadge = (status: SSLCertificate['status'], daysUntilExpiry: number) => {
         switch (status) {
             case 'valid':
                 if (daysUntilExpiry <= 7) {
-                    return `${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300`;
+                    return { variant: 'destructive' as const, label: 'Expiring Soon', icon: AlertTriangle };
+                } else if (daysUntilExpiry <= 30) {
+                    return { variant: 'secondary' as const, label: 'Expiring', icon: Clock };
                 }
-                return `${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300`;
+                return { variant: 'default' as const, label: 'Valid', icon: CheckCircle };
+            case 'expiring':
+                return { variant: 'destructive' as const, label: 'Expiring Soon', icon: AlertTriangle };
             case 'expired':
-                return `${baseClasses} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300`;
-            case 'pending':
-                return `${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300`;
+                return { variant: 'destructive' as const, label: 'Expired', icon: AlertCircle };
+            case 'error':
+                return { variant: 'destructive' as const, label: 'Error', icon: AlertCircle };
             default:
-                return `${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300`;
+                return { variant: 'secondary' as const, label: 'Unknown', icon: AlertCircle };
         }
     };
 
-    const getStatusText = (status: string, daysUntilExpiry: number) => {
-        switch (status) {
-            case 'valid':
-                if (daysUntilExpiry <= 7) {
-                    return 'Expiring Soon';
-                }
-                return 'Valid';
-            case 'expired':
-                return 'Expired';
-            case 'pending':
-                return 'Pending';
-            default:
-                return 'Unknown';
-        }
-    };
+    const expiringCount = certificates.filter(cert =>
+        cert.status === 'expiring' || cert.daysUntilExpiry <= 30
+    ).length;
+
+    const expiredCount = certificates.filter(cert => cert.status === 'expired').length;
 
     return (
-        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 w-full">
+        <div className="p-6 space-y-6">
             {/* Header */}
-            <div className="sm:flex sm:items-center mb-6 sm:mb-8">
-                <div className="sm:flex-auto min-w-0 flex-1">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                        <Shield className="h-8 w-8" />
                         SSL Certificates
                     </h1>
-                    <p className="mt-1 sm:mt-2 text-sm text-gray-700 dark:text-gray-300">
+                    <p className="text-muted-foreground">
                         Monitor SSL certificate status and validity for your domains.
                     </p>
                     {lastChecked && (
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Last checked: {new Date(lastChecked).toLocaleString()}
                         </p>
                     )}
                 </div>
-                <div className="mt-4 sm:mt-0 sm:ml-4 sm:flex-none">
-                    <button
-                        type="button"
-                        onClick={() => fetchCertificates()}
-                        disabled={isLoading}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 w-full sm:w-auto disabled:opacity-50"
-                    >
-                        {isLoading ? 'Checking...' : 'Refresh Certificates'}
-                    </button>
-                </div>
+                <Button
+                    onClick={fetchCertificates}
+                    disabled={isLoading}
+                    className="w-full sm:w-auto"
+                >
+                    {isLoading ? (
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoading ? 'Checking...' : 'Refresh Certificates'}
+                </Button>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Certificates</CardTitle>
+                        <Shield className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{certificates.length}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{expiringCount}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Expired</CardTitle>
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{expiredCount}</div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="mb-6 rounded-md bg-red-50 dark:bg-red-900 p-4">
-                    <div className="flex">
-                        <div className="ml-3">
-                            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
-                                Error loading certificates
-                            </h3>
-                            <div className="mt-2 text-sm text-red-700 dark:text-red-400">
-                                <p>{error}</p>
-                            </div>
-                            <div className="mt-4">
-                                <button
-                                    type="button"
-                                    onClick={clearError}
-                                    className="bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-300 rounded-md text-sm hover:bg-red-100 dark:hover:bg-red-800 px-2 py-1"
-                                >
-                                    Dismiss
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
             )}
 
             {/* Certificates Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Domain
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Issuer
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Valid Until
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Auto Renewal
-                                </th>
-                                <th className="relative px-4 sm:px-6 py-3">
-                                    <span className="sr-only">Actions</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={6} className="px-4 sm:px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        Loading certificates...
-                                    </td>
-                                </tr>
-                            ) : certificates.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-4 sm:px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        No SSL certificates found. Certificates will appear here once domains are configured.
-                                    </td>
-                                </tr>
-                            ) : (
-                                certificates.map((cert) => (
-                                    <tr key={cert.id}>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                            <div className="truncate max-w-xs">{cert.domain}</div>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            <div className="truncate max-w-xs">{cert.issuer}</div>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            <div>
-                                                {new Date(cert.validTo).toLocaleDateString()}
-                                                <div className="text-xs text-gray-400">
-                                                    ({cert.daysUntilExpiry} days remaining)
+            <Card>
+                <CardHeader>
+                    <CardTitle>SSL Certificates</CardTitle>
+                    <CardDescription>
+                        Manage and monitor your SSL certificates
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                            <span>Loading certificates...</span>
+                        </div>
+                    ) : certificates.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="text-lg font-medium mb-2">No SSL certificates found</h3>
+                            <p className="text-muted-foreground">
+                                SSL certificates will appear here once configured.
+                            </p>
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Domain</TableHead>
+                                    <TableHead>Issuer</TableHead>
+                                    <TableHead>Valid Until</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Auto Renewal</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {certificates.map((cert) => {
+                                    const statusBadge = getStatusBadge(cert.status, cert.daysUntilExpiry);
+                                    const StatusIcon = statusBadge.icon;
+
+                                    return (
+                                        <TableRow key={cert.id}>
+                                            <TableCell className="font-medium">
+                                                {cert.domain}
+                                            </TableCell>
+                                            <TableCell>{cert.issuer}</TableCell>
+                                            <TableCell>
+                                                <div>
+                                                    {new Date(cert.validTo).toLocaleDateString()}
+                                                    <div className="text-xs text-muted-foreground">
+                                                        ({cert.daysUntilExpiry > 0 ? cert.daysUntilExpiry : Math.abs(cert.daysUntilExpiry)} days {cert.daysUntilExpiry > 0 ? 'remaining' : 'expired'})
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <span className={getStatusBadge(cert.status, cert.daysUntilExpiry)}>
-                                                {getStatusText(cert.status, cert.daysUntilExpiry)}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {cert.autoRenewal ? (
-                                                <span className="text-green-600 dark:text-green-400">Enabled</span>
-                                            ) : (
-                                                <span className="text-red-600 dark:text-red-400">Disabled</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => refreshCertificate(cert.domain)}
-                                                disabled={isLoading}
-                                                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 disabled:opacity-50"
-                                            >
-                                                Refresh
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
+                                                    <StatusIcon className="h-3 w-3" />
+                                                    {statusBadge.label}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={cert.autoRenewal ? "default" : "secondary"}>
+                                                    {cert.autoRenewal ? 'Enabled' : 'Disabled'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="sm">
+                                                    Renew
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 } 

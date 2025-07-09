@@ -8,10 +8,16 @@ import {
     Settings,
     Server,
     LogOut,
+    Menu,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/context/auth-context';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useState } from 'react';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -23,84 +29,119 @@ const navigation = [
 ];
 
 /**
- * Protected dashboard layout component - requires authentication
+ * Sidebar component for both desktop and mobile
  */
-function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+function Sidebar({ className = '' }: { className?: string }) {
     const { user, logout } = useAuth();
     const pathname = usePathname();
 
     const handleLogout = () => {
         logout();
-        // User will automatically see login form due to AuthGuard
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 flex overflow-hidden">
-            {/* Sidebar */}
-            <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
-                <div className="flex flex-col h-full">
-                    {/* Logo */}
-                    <div className="flex items-center justify-between py-3 px-4 border-b border-gray-700 flex-shrink-0">
-                        <div className="flex items-center">
-                            <div className="w-6 h-6 bg-blue-600 flex items-center justify-center rounded-sm">
-                                <Server className="w-4 h-4 text-white rounded-sm" />
-                            </div>
-                            <span className="ml-2 text-lg font-semibold text-white">Caddy Proxy Manager</span>
-                        </div>
+        <div className={`flex flex-col h-full bg-background border-r ${className}`}>
+            {/* Logo */}
+            <div className="flex items-center justify-between p-6 border-b">
+                <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-primary text-primary-foreground rounded-md flex items-center justify-center">
+                        <Server className="w-4 h-4" />
                     </div>
-
-                    {/* Navigation */}
-                    <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-                        {navigation.map((item) => {
-                            const Icon = item.icon;
-                            const isActive = pathname === item.href;
-                            return (
-                                <a
-                                    key={item.name}
-                                    href={item.href}
-                                    className={`
-                                        flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors
-                                        ${isActive
-                                            ? 'bg-blue-600 text-white'
-                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                                        }
-                                    `}
-                                >
-                                    <Icon className="w-5 h-5 mr-3" />
-                                    {item.name}
-                                </a>
-                            );
-                        })}
-                    </nav>
-
-                    {/* User section */}
-                    <div className="border-t border-gray-700 p-4 flex-shrink-0">
-                        <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-600 flex items-center justify-center rounded-full">
-                                <Users className="w-4 h-4 text-gray-300" />
-                            </div>
-                            <div className="ml-3 flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{user?.name || 'Admin User'}</p>
-                                <p className="text-xs text-gray-400 truncate">{user?.email || 'admin@example.com'}</p>
-                            </div>
-                            <button
-                                onClick={handleLogout}
-                                className="text-gray-400 hover:text-white transition-colors"
-                                title="Logout"
-                            >
-                                <LogOut className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
+                    <span className="text-lg font-semibold">Proxy Manager</span>
                 </div>
+                <ThemeToggle />
             </div>
 
-            {/* Main Content */}
-            <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-hidden">
-                <div className="h-full overflow-y-auto">
-                    {children}
+            {/* Navigation */}
+            <nav className="flex-1 p-4 space-y-2">
+                {navigation.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+                    return (
+                        <Button
+                            key={item.name}
+                            asChild
+                            variant={isActive ? "default" : "ghost"}
+                            className="w-full justify-start"
+                        >
+                            <a href={item.href}>
+                                <Icon className="w-4 h-4 mr-3" />
+                                {item.name}
+                            </a>
+                        </Button>
+                    );
+                })}
+            </nav>
+
+            {/* User section */}
+            <div className="p-4 border-t">
+                <div className="flex items-center space-x-3">
+                    <Avatar>
+                        <AvatarFallback>
+                            {user?.name?.charAt(0) || 'A'}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{user?.name || 'Admin User'}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user?.email || 'admin@example.com'}</p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleLogout}
+                    >
+                        <LogOut className="w-4 h-4" />
+                    </Button>
                 </div>
-            </main>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Protected dashboard layout component - requires authentication
+ */
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    return (
+        <div className="min-h-screen flex">
+            {/* Desktop Sidebar */}
+            <div className="hidden lg:flex lg:w-64 lg:flex-col">
+                <Sidebar />
+            </div>
+
+            {/* Mobile Sidebar */}
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                <div className="flex flex-col flex-1">
+                    {/* Mobile Header */}
+                    <div className="lg:hidden flex items-center justify-between p-4 border-b bg-background">
+                        <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-primary text-primary-foreground rounded-md flex items-center justify-center">
+                                <Server className="w-4 h-4" />
+                            </div>
+                            <span className="text-lg font-semibold">Proxy Manager</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <ThemeToggle />
+                            <SheetTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                    <Menu className="w-5 h-5" />
+                                </Button>
+                            </SheetTrigger>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="flex-1 overflow-auto">
+                        {children}
+                    </main>
+                </div>
+
+                <SheetContent side="left" className="p-0 w-64">
+                    <Sidebar />
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

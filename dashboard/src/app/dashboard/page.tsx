@@ -56,21 +56,21 @@ const recentActivity = [
  */
 export default function DashboardPage() {
     return (
-        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 w-full">
+        <div className="p-4 sm:p-6 bg-background w-full">
             {/* Stats grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
                 {stats.map((stat) => {
                     const Icon = stat.icon;
                     return (
-                        <div key={stat.title} className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow min-w-0">
+                        <div key={stat.title} className="bg-card p-4 sm:p-6 rounded-lg shadow-sm border min-w-0">
                             <div className="flex items-center">
                                 <div className={`p-2 sm:p-3 rounded-full ${stat.bgColor} flex-shrink-0`}>
                                     <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                                 </div>
                                 <div className="ml-3 sm:ml-4 min-w-0 flex-1">
-                                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{stat.title}</p>
-                                    <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{stat.change}</p>
+                                    <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-foreground">{stat.value}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{stat.change}</p>
                                 </div>
                             </div>
                         </div>
@@ -81,9 +81,9 @@ export default function DashboardPage() {
             {/* Recent activity and system info */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
                 {/* Recent Activity */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow min-w-0">
-                    <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
+                <div className="bg-card rounded-lg shadow-sm border min-w-0">
+                    <div className="p-4 sm:p-6 border-b">
+                        <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
                     </div>
                     <div className="p-4 sm:p-6">
                         <div className="space-y-3 sm:space-y-4">
@@ -95,11 +95,11 @@ export default function DashboardPage() {
                                                 'bg-blue-400'
                                             }`} />
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{activity.action}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{activity.target}</p>
+                                            <p className="text-sm font-medium text-foreground truncate">{activity.action}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{activity.target}</p>
                                         </div>
                                     </div>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">{activity.time}</span>
+                                    <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{activity.time}</span>
                                 </div>
                             ))}
                         </div>
@@ -107,37 +107,37 @@ export default function DashboardPage() {
                 </div>
 
                 {/* System Overview */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow min-w-0">
-                    <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System Overview</h3>
+                <div className="bg-card rounded-lg shadow-sm border min-w-0">
+                    <div className="p-4 sm:p-6 border-b">
+                        <h3 className="text-lg font-semibold text-foreground">System Overview</h3>
                     </div>
                     <div className="p-4 sm:p-6">
                         <div className="space-y-3 sm:space-y-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center min-w-0 flex-1">
                                     <CheckCircle className="w-5 h-5 text-green-400 mr-3 flex-shrink-0" />
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">Caddy Server</span>
+                                    <span className="text-sm text-foreground truncate">Caddy Server</span>
                                 </div>
                                 <span className="text-sm text-green-400 flex-shrink-0">Running</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center min-w-0 flex-1">
                                     <CheckCircle className="w-5 h-5 text-green-400 mr-3 flex-shrink-0" />
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">Database</span>
+                                    <span className="text-sm text-foreground truncate">Database</span>
                                 </div>
                                 <span className="text-sm text-green-400 flex-shrink-0">Connected</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center min-w-0 flex-1">
                                     <Clock className="w-5 h-5 text-yellow-400 mr-3 flex-shrink-0" />
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">SSL Auto-renewal</span>
+                                    <span className="text-sm text-foreground truncate">SSL Auto-renewal</span>
                                 </div>
                                 <span className="text-sm text-yellow-400 flex-shrink-0">2 pending</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center min-w-0 flex-1">
                                     <TrendingUp className="w-5 h-5 text-blue-400 mr-3 flex-shrink-0" />
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">Uptime</span>
+                                    <span className="text-sm text-foreground truncate">Uptime</span>
                                 </div>
                                 <span className="text-sm text-blue-400 flex-shrink-0">99.9%</span>
                             </div>

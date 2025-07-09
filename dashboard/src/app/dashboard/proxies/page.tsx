@@ -1,195 +1,335 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useProxyStore, ProxyConfig } from '@/context/proxy-store';
-import Modal from '@/components/Modal';
-import ProxyForm from '@/components/ProxyForm';
-import SSLBadge from '@/components/SSLBadge';
+import { useEffect, useState } from 'react';
+import { Globe, Plus, Pencil, Trash2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
+// Mock proxy data
+interface ProxyConfig {
+    id: string;
+    domain: string;
+    target: string;
+    sslStatus: 'valid' | 'expired' | 'pending' | 'error';
+    status: 'active' | 'inactive';
+    createdAt: string;
+    updatedAt: string;
+}
+
+const mockProxies: ProxyConfig[] = [
+    {
+        id: '1',
+        domain: 'api.example.com',
+        target: 'http://localhost:3001',
+        sslStatus: 'valid',
+        status: 'active',
+        createdAt: '2024-01-15T10:30:00Z',
+        updatedAt: '2024-01-15T10:30:00Z'
+    },
+    {
+        id: '2',
+        domain: 'app.example.com',
+        target: 'http://localhost:3000',
+        sslStatus: 'valid',
+        status: 'active',
+        createdAt: '2024-01-10T14:20:00Z',
+        updatedAt: '2024-01-10T14:20:00Z'
+    },
+    {
+        id: '3',
+        domain: 'old.example.com',
+        target: 'http://localhost:8080',
+        sslStatus: 'expired',
+        status: 'inactive',
+        createdAt: '2024-01-05T09:15:00Z',
+        updatedAt: '2024-01-05T09:15:00Z'
+    }
+];
 
 /**
  * Proxy management page - list, create, edit, delete proxy configurations
  */
 export default function ProxiesPage() {
-    const {
-        proxies,
-        isLoading,
-        error,
-        showModal,
-        modalMode,
-        selectedProxy,
-        fetchProxies,
-        createProxy,
-        updateProxy,
-        deleteProxy,
-        showCreateModal,
-        showEditModal,
-        hideModal,
-        clearError,
-    } = useProxyStore();
+    const [proxies, setProxies] = useState<ProxyConfig[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [selectedProxy, setSelectedProxy] = useState<ProxyConfig | null>(null);
+
+    const fetchProxies = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            setProxies(mockProxies);
+        } catch {
+            setError('Failed to fetch proxies');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchProxies();
-    }, [fetchProxies]);
+    }, []);
 
     const handleDeleteProxy = async (id: string) => {
-        if (confirm('Are you sure you want to delete this proxy? This action cannot be undone.')) {
-            await deleteProxy(id);
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 500));
+            setProxies(prev => prev.filter(proxy => proxy.id !== id));
+        } catch {
+            setError('Failed to delete proxy');
         }
     };
 
-    const handleFormSubmit = async (formData: Omit<ProxyConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
-        if (modalMode === 'edit' && selectedProxy) {
-            await updateProxy(selectedProxy.id, formData);
-        } else {
-            await createProxy(formData);
+    const getSSLBadge = (status: ProxyConfig['sslStatus']) => {
+        switch (status) {
+            case 'valid':
+                return { variant: 'default' as const, label: 'Valid SSL', icon: CheckCircle };
+            case 'expired':
+                return { variant: 'destructive' as const, label: 'SSL Expired', icon: AlertCircle };
+            case 'pending':
+                return { variant: 'secondary' as const, label: 'SSL Pending', icon: AlertCircle };
+            case 'error':
+                return { variant: 'destructive' as const, label: 'SSL Error', icon: AlertCircle };
+            default:
+                return { variant: 'secondary' as const, label: 'Unknown', icon: AlertCircle };
         }
     };
+
+    const getStatusBadge = (status: ProxyConfig['status']) => {
+        switch (status) {
+            case 'active':
+                return { variant: 'default' as const, label: 'Active' };
+            case 'inactive':
+                return { variant: 'secondary' as const, label: 'Inactive' };
+            default:
+                return { variant: 'secondary' as const, label: 'Unknown' };
+        }
+    };
+
+    const activeProxies = proxies.filter(proxy => proxy.status === 'active').length;
+    const sslIssues = proxies.filter(proxy => proxy.sslStatus === 'expired' || proxy.sslStatus === 'error').length;
 
     return (
-        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 w-full">
+        <div className="p-6 space-y-6">
             {/* Header */}
-            <div className="sm:flex sm:items-center mb-6 sm:mb-8">
-                <div className="sm:flex-auto min-w-0 flex-1">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                        <Globe className="h-8 w-8" />
                         Proxy Configurations
                     </h1>
-                    <p className="mt-1 sm:mt-2 text-sm text-gray-700 dark:text-gray-300">
+                    <p className="text-muted-foreground">
                         Manage your Caddy proxy configurations and routing rules.
                     </p>
                 </div>
-                <div className="mt-4 sm:mt-0 sm:ml-4 sm:flex-none">
-                    <button
-                        type="button"
-                        onClick={showCreateModal}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 w-full sm:w-auto"
-                    >
-                        Add Proxy
-                    </button>
-                </div>
+                <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                    <DialogTrigger asChild>
+                        <Button className="w-full sm:w-auto">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Proxy
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle>Create New Proxy</DialogTitle>
+                            <DialogDescription>
+                                Add a new proxy configuration to route traffic to your services.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {/* TODO: Add ProxyForm component here */}
+                        <div className="p-4 text-center text-muted-foreground">
+                            Proxy form will be implemented here
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Proxies</CardTitle>
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{proxies.length}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Active Proxies</CardTitle>
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{activeProxies}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">SSL Issues</CardTitle>
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{sslIssues}</div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="mb-6 rounded-md bg-red-50 dark:bg-red-900 p-4">
-                    <div className="flex">
-                        <div className="ml-3">
-                            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
-                                Error
-                            </h3>
-                            <div className="mt-2 text-sm text-red-700 dark:text-red-400">
-                                <p>{error}</p>
-                            </div>
-                            <div className="mt-4">
-                                <button
-                                    type="button"
-                                    onClick={clearError}
-                                    className="bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-300 rounded-md text-sm hover:bg-red-100 dark:hover:bg-red-800 px-2 py-1"
-                                >
-                                    Dismiss
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
             )}
 
             {/* Proxies Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                            <tr>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Domain
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Target
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    SSL Status
-                                </th>
-                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="relative px-4 sm:px-6 py-3">
-                                    <span className="sr-only">Actions</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 sm:px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        Loading proxies...
-                                    </td>
-                                </tr>
-                            ) : proxies.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 sm:px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        No proxies configured. Click &quot;Add Proxy&quot; to create your first proxy.
-                                    </td>
-                                </tr>
-                            ) : (
-                                proxies.map((proxy) => (
-                                    <tr key={proxy.id}>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                            <div className="truncate max-w-xs">{proxy.domain}</div>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            <div className="truncate max-w-xs">{proxy.target}</div>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <SSLBadge
-                                                status={proxy.sslStatus}
-                                                daysUntilExpiry={30} // TODO: Calculate from real data
-                                            />
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${proxy.status === 'active'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                                                }`}>
-                                                {proxy.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex justify-end space-x-2">
-                                                <button
-                                                    onClick={() => showEditModal(proxy)}
-                                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteProxy(proxy.id)}
-                                                    className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Proxy Configurations</CardTitle>
+                    <CardDescription>
+                        Manage your proxy routing configurations
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-2"></div>
+                            <span>Loading proxies...</span>
+                        </div>
+                    ) : proxies.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="text-lg font-medium mb-2">No proxies configured</h3>
+                            <p className="text-muted-foreground mb-4">
+                                Get started by creating your first proxy configuration.
+                            </p>
+                            <Button onClick={() => setShowCreateDialog(true)}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Proxy
+                            </Button>
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Domain</TableHead>
+                                    <TableHead>Target</TableHead>
+                                    <TableHead>SSL Status</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {proxies.map((proxy) => {
+                                    const sslBadge = getSSLBadge(proxy.sslStatus);
+                                    const statusBadge = getStatusBadge(proxy.status);
+                                    const SSLIcon = sslBadge.icon;
 
-            {/* Modal for Creating/Editing Proxies */}
-            <Modal
-                isOpen={showModal}
-                onClose={hideModal}
-                title={modalMode === 'edit' ? 'Edit Proxy' : 'Create New Proxy'}
-                size="lg"
-            >
-                <ProxyForm
-                    proxy={selectedProxy}
-                    onSubmit={handleFormSubmit}
-                    onCancel={hideModal}
-                    isLoading={isLoading}
-                />
-            </Modal>
+                                    return (
+                                        <TableRow key={proxy.id}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    {proxy.domain}
+                                                    <Button variant="ghost" size="sm" asChild>
+                                                        <a
+                                                            href={`https://${proxy.domain}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </a>
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <code className="text-sm bg-muted px-2 py-1 rounded">
+                                                    {proxy.target}
+                                                </code>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={sslBadge.variant} className="flex items-center gap-1 w-fit">
+                                                    <SSLIcon className="h-3 w-3" />
+                                                    {sslBadge.label}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={statusBadge.variant}>
+                                                    {statusBadge.label}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setSelectedProxy(proxy)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="sm">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Are you sure you want to delete the proxy for "{proxy.domain}"?
+                                                                    This action cannot be undone and will immediately stop routing traffic.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    onClick={() => handleDeleteProxy(proxy.id)}
+                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                >
+                                                                    Delete
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Edit Dialog */}
+            {selectedProxy && (
+                <Dialog open={!!selectedProxy} onOpenChange={() => setSelectedProxy(null)}>
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle>Edit Proxy</DialogTitle>
+                            <DialogDescription>
+                                Update the proxy configuration for {selectedProxy.domain}.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {/* TODO: Add ProxyForm component here */}
+                        <div className="p-4 text-center text-muted-foreground">
+                            Edit proxy form will be implemented here
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 } 

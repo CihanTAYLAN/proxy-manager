@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { useAuth } from '@/context/auth-context';
 import LoginForm from '@/components/LoginForm';
+import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
     children: ReactNode;
@@ -18,10 +19,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     // Show loading spinner while checking authentication
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-400">Loading...</p>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
                 </div>
             </div>
         );

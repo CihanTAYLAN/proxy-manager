@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/context/auth-context";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
+import { AuthProvider } from '@/context/auth-context';
+import { ThemeProvider } from '@/context/theme-context';
+import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: "Caddy Proxy Manager",
-  description: "Caddy Proxy Manager",
+  title: "Proxy Manager Dashboard",
+  description: "Caddy reverse proxy management dashboard",
 };
 
 export default function RootLayout({
@@ -20,12 +16,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${inter.variable} font-sans antialiased bg-gray-900 text-white min-h-screen`}
-      >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+      <body className="antialiased">
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
