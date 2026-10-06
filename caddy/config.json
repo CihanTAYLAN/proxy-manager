@@ -1,0 +1,99 @@
+{
+    "admin": {
+        "listen": "127.0.0.1:2019"
+    },
+    "logging": {
+        "logs": {
+            "default": {
+                "level": "INFO",
+                "writer": {
+                    "output": "file",
+                    "filename": "/data/logs/caddy.log"
+                },
+                "encoder": {
+                    "format": "filter",
+                    "wrap": {
+                        "format": "console"
+                    },
+                    "fields": {
+                        "request>headers>Authorization": {
+                            "filter": "delete"
+                        }
+                    }
+                }
+            },
+            "dashboard": {
+                "level": "INFO",
+                "writer": {
+                    "output": "file",
+                    "filename": "/data/logs/dashboard.log"
+                },
+                "encoder": {
+                    "format": "json"
+                }
+            }
+        }
+    },
+    "apps": {
+        "http": {
+            "servers": {
+                "main_server": {
+                    "listen": [
+                        ":80"
+                    ],
+                    "routes": [
+                        {
+                            "match": [
+                                {
+                                    "host": [
+                                        "{env.HOST}"
+                                    ]
+                                }
+                            ],
+                            "handle": [
+                                {
+                                    "handler": "reverse_proxy",
+                                    "upstreams": [
+                                        {
+                                            "dial": "127.0.0.1:3000"
+                                        }
+                                    ],
+                                    "headers": {
+                                        "request": {
+                                            "set": {
+                                                "Host": [
+                                                    "{http.request.host}"
+                                                ],
+                                                "X-Real-IP": [
+                                                    "{http.request.remote}"
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ],
+                            "terminal": true
+                        },
+                        {
+                            "handle": [
+                                {
+                                    "handler": "static_response",
+                                    "headers": {
+                                        "Content-Type": [
+                                            "text/html; charset=utf-8"
+                                        ]
+                                    },
+                                    "body": "<!DOCTYPE html>\n<html>\n<head>\n    <title>Proxy Manager - Domain Not Configured</title>\n    <style>\n        body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }\n        .container { max-width: 600px; margin: 0 auto; }\n        .error-code { font-size: 4em; color: #666; margin-bottom: 20px; }\n        .message { font-size: 1.2em; color: #333; margin-bottom: 30px; }\n        .dashboard-link { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"error-code\">404</div>\n        <div class=\"message\">\n            Domain \"{http.request.host}\" is not configured.<br>\n            Please add this domain through the Proxy Manager dashboard.\n        </div>\n        <a href=\"http://{env.HOST}\" class=\"dashboard-link\">Go to Dashboard</a>\n    </div>\n</body>\n</html>",
+                                    "status_code": 404
+                                }
+                            ]
+                        }
+                    ],
+                    "logs": {
+                        "default_logger_name": "dashboard"
+                    }
+                }
+            }
+        }
+    }
+}

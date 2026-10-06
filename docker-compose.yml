@@ -8,9 +8,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "2019:2019" # Caddy admin API for dashboard
     volumes:
       # Caddy data volume
       - ./caddy/data:/data
+
+      # Caddy configuration files
+      - ./caddy/config.json:/etc/caddy/config.json:ro
+      - ./caddy/config.production.json:/etc/caddy/config.production.json:ro
 
       # Prisma database and schema
       - ./dashboard/prisma:/app/dashboard/prisma
@@ -50,12 +55,13 @@ services:
         echo '📊 Dashboard started in development mode' &&
         echo '🌐 Starting Caddy...' &&
         if [ '$$NODE_ENV' = 'production' ]; then
-          CADDYFILE='/etc/caddy/Caddyfile'
+          CONFIG_FILE='/etc/caddy/config.production.json'
         else
-          sed 's/$$HOST/$$HOST/g' /etc/caddy/Caddyfile.dev > /tmp/Caddyfile.dev
-          CADDYFILE='/tmp/Caddyfile.dev'
+          CONFIG_FILE='/etc/caddy/config.json'
         fi &&
-        exec caddy run --config $$CADDYFILE
+        echo '🌐 Starting Caddy with JSON config: '$$CONFIG_FILE &&
+        echo '🔧 HOST environment variable: '$$HOST &&
+        exec caddy run --config $$CONFIG_FILE
       "
 
 # Named volumes

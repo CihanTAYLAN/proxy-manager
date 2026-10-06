@@ -1,0 +1,241 @@
+{
+    "admin": {
+        "listen": "127.0.0.1:2019"
+    },
+    "logging": {
+        "logs": {
+            "default": {
+                "level": "INFO",
+                "writer": {
+                    "output": "file",
+                    "filename": "/data/logs/caddy.log"
+                },
+                "encoder": {
+                    "format": "filter",
+                    "wrap": {
+                        "format": "json"
+                    },
+                    "fields": {
+                        "request>headers>Authorization": {
+                            "filter": "delete"
+                        },
+                        "request>headers>Cookie": {
+                            "filter": "delete"
+                        }
+                    }
+                }
+            },
+            "dashboard": {
+                "level": "INFO",
+                "writer": {
+                    "output": "file",
+                    "filename": "/data/logs/dashboard.log"
+                },
+                "encoder": {
+                    "format": "json"
+                }
+            }
+        }
+    },
+    "apps": {
+        "http": {
+            "https_port": 443,
+            "http_port": 80,
+            "servers": {
+                "dashboard_server": {
+                    "listen": [
+                        ":443"
+                    ],
+                    "routes": [
+                        {
+                            "match": [
+                                {
+                                    "host": [
+                                        "{env.HOST}"
+                                    ]
+                                }
+                            ],
+                            "handle": [
+                                {
+                                    "handler": "headers",
+                                    "response": {
+                                        "set": {
+                                            "Strict-Transport-Security": [
+                                                "max-age=31536000; includeSubDomains; preload"
+                                            ],
+                                            "X-Content-Type-Options": [
+                                                "nosniff"
+                                            ],
+                                            "X-Frame-Options": [
+                                                "DENY"
+                                            ],
+                                            "X-XSS-Protection": [
+                                                "1; mode=block"
+                                            ],
+                                            "Referrer-Policy": [
+                                                "strict-origin-when-cross-origin"
+                                            ]
+                                        },
+                                        "delete": [
+                                            "Server",
+                                            "X-Powered-By"
+                                        ]
+                                    }
+                                },
+                                {
+                                    "handler": "reverse_proxy",
+                                    "upstreams": [
+                                        {
+                                            "dial": "127.0.0.1:3000"
+                                        }
+                                    ],
+                                    "headers": {
+                                        "request": {
+                                            "set": {
+                                                "Host": [
+                                                    "{http.request.host}"
+                                                ],
+                                                "X-Real-IP": [
+                                                    "{http.request.remote}"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "health_checks": {
+                                        "passive": {
+                                            "unhealthy_request_count": 3,
+                                            "unhealthy_status": [
+                                                500,
+                                                502,
+                                                503,
+                                                504
+                                            ],
+                                            "unhealthy_latency": "10s"
+                                        },
+                                        "active": {
+                                            "uri": "/api/test",
+                                            "interval": "30s",
+                                            "timeout": "5s"
+                                        }
+                                    }
+                                }
+                            ],
+                            "terminal": true
+                        }
+                    ],
+                    "logs": {
+                        "default_logger_name": "dashboard"
+                    }
+                },
+                "http_redirect": {
+                    "listen": [
+                        ":80"
+                    ],
+                    "routes": [
+                        {
+                            "match": [
+                                {
+                                    "host": [
+                                        "{env.HOST}"
+                                    ]
+                                }
+                            ],
+                            "handle": [
+                                {
+                                    "handler": "static_response",
+                                    "headers": {
+                                        "Location": [
+                                            "https://{http.request.host}{http.request.uri}"
+                                        ]
+                                    },
+                                    "status_code": 301
+                                }
+                            ],
+                            "terminal": true
+                        }
+                    ]
+                },
+                "catch_all_https": {
+                    "listen": [
+                        ":443"
+                    ],
+                    "routes": [
+                        {
+                            "handle": [
+                                {
+                                    "handler": "headers",
+                                    "response": {
+                                        "set": {
+                                            "Content-Type": [
+                                                "text/html; charset=utf-8"
+                                            ],
+                                            "X-Content-Type-Options": [
+                                                "nosniff"
+                                            ],
+                                            "X-Frame-Options": [
+                                                "DENY"
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "handler": "static_response",
+                                    "body": "<!DOCTYPE html>\n<html>\n<head>\n    <title>Proxy Manager - Domain Not Configured</title>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <style>\n        body { \n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; \n            text-align: center; \n            margin-top: 100px; \n            background: #f8f9fa;\n            color: #333;\n        }\n        .container { \n            max-width: 600px; \n            margin: 0 auto; \n            padding: 40px 20px;\n            background: white;\n            border-radius: 10px;\n            box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n        }\n        .error-code { \n            font-size: 6em; \n            color: #dc3545; \n            margin-bottom: 20px; \n            font-weight: bold;\n        }\n        .message { \n            font-size: 1.3em; \n            color: #666; \n            margin-bottom: 30px; \n            line-height: 1.5;\n        }\n        .domain { \n            font-family: monospace; \n            background: #f1f3f4; \n            padding: 4px 8px; \n            border-radius: 4px; \n            color: #d73a49; \n        }\n        .dashboard-link { \n            display: inline-block; \n            padding: 12px 24px; \n            background: #007bff; \n            color: white; \n            text-decoration: none; \n            border-radius: 6px; \n            font-weight: 500;\n            transition: background 0.2s;\n        }\n        .dashboard-link:hover { \n            background: #0056b3; \n        }\n        .footer {\n            margin-top: 40px;\n            font-size: 0.9em;\n            color: #999;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"error-code\">404</div>\n        <div class=\"message\">\n            Domain <span class=\"domain\">{http.request.host}</span> is not configured.<br>\n            Please add this domain through the Proxy Manager dashboard.\n        </div>\n        <a href=\"https://{env.HOST}\" class=\"dashboard-link\">Go to Dashboard</a>\n        <div class=\"footer\">\n            Powered by Proxy Manager\n        </div>\n    </div>\n</body>\n</html>",
+                                    "status_code": 404
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "catch_all_http": {
+                    "listen": [
+                        ":80"
+                    ],
+                    "routes": [
+                        {
+                            "handle": [
+                                {
+                                    "handler": "static_response",
+                                    "headers": {
+                                        "Location": [
+                                            "https://{http.request.host}{http.request.uri}"
+                                        ]
+                                    },
+                                    "status_code": 301
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        "tls": {
+            "automation": {
+                "policies": [
+                    {
+                        "subjects": [
+                            "{env.HOST}"
+                        ],
+                        "issuers": [
+                            {
+                                "module": "acme",
+                                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                                "email": "admin@{env.HOST}",
+                                "agreed": true
+                            }
+                        ]
+                    },
+                    {
+                        "issuers": [
+                            {
+                                "module": "acme",
+                                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                                "agreed": true
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}
